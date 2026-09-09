@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qui va chercher les sacs ? — Tirage au sort</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; }
+  :root {
+    --kraft: #cdb385; --paper: #fdfaf1; --paper-input: #f4efe0;
+    --ink: #26301f; --ink-soft: #55604a; --mustard: #d9971f; --stamp: #a33326; --green: #3d6b46;
+  }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; background: var(--kraft); font-family: 'Barlow Condensed', sans-serif;
+  }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .ticket-card {
+    background: var(--paper); position: relative; border-radius: 4px;
+    box-shadow: 0 18px 40px -20px rgba(38,48,31,0.55); width: 100%; max-width: 420px; overflow: hidden;
+  }
+  .ticket-card::before, .ticket-card::after {
+    content: ""; position: absolute; width: 26px; height: 26px; background: var(--kraft);
+    border-radius: 50%; top: 50%; transform: translateY(-50%);
+  }
+  .ticket-card::before { left: -13px; }
+  .ticket-card::after { right: -13px; }
+  .perf { background-image: radial-gradient(circle, var(--kraft) 3px, transparent 3.2px); background-size: 16px 16px; background-position: 4px center; height: 10px; }
+  .header { padding: 20px 24px 16px; border-bottom: 2px dashed rgba(38,48,31,0.25); }
+  .header-top { display: flex; align-items: center; justify-content: space-between; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.03em; color: var(--ink-soft); margin: 0; }
+  .clock { font-size: 11px; color: var(--ink-soft); display: flex; align-items: center; gap: 4px; }
+  h1 { font-size: 30px; line-height: 1; margin: 4px 0 0; color: var(--ink); font-weight: 600; }
+  .status { font-size: 11px; margin: 8px 0 0; }
+  .body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .add-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .add-row input[type="text"] {
+    padding: 10px 12px; border-radius: 4px; font-size: 18px; background: var(--paper-input); color: var(--ink);
+    border: 1px solid rgba(38,48,31,0.2); font-family: 'Barlow Condensed', sans-serif; outline: none;
+  }
+  #nameInput { flex: 1; min-width: 120px; }
+  #bagInput { width: 100px; }
+  .add-row input:disabled { opacity: 0.5; }
+  .icon-btn {
+    padding: 0 14px; border-radius: 4px; background: var(--mustard); color: #fff; border: none;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .icon-btn:disabled { opacity: 0.5; cursor: default; }
+  .icon-btn.ghost { background: transparent; border: 1px solid rgba(38,48,31,0.3); color: var(--ink-soft); }
+  .error-msg { font-size: 12px; color: var(--stamp); margin: 0; }
+  .empty-msg { font-size: 18px; color: var(--ink-soft); margin: 0; }
+  .name-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed rgba(38,48,31,0.2); }
+  .name-row:last-child { border-bottom: none; }
+  .name-row .idx { font-size: 13px; color: var(--ink); }
+  .name-row .name { font-family: 'Barlow Condensed', sans-serif; font-size: 18px; }
+  .name-row .bag { color: var(--ink-soft); }
+  .name-row button { background: none; border: none; cursor: pointer; color: var(--ink-soft); display: flex; }
+  .exclude-label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-soft); cursor: pointer; }
+  .action-row { display: flex; gap: 8px; }
+  .draw-btn {
+    flex: 1; padding: 13px; border-radius: 4px; border: none; cursor: pointer; background: var(--ink); color: var(--paper);
+    font-size: 18px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+  .draw-btn:disabled { opacity: 0.6; cursor: default; }
+  .hint { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); margin: 0; }
+  .reveal { padding: 0 24px 20px; }
+  .rolling-name { font-family: 'IBM Plex Mono', monospace; font-size: 24px; text-align: center; color: var(--ink-soft); margin: 0; }
+  @keyframes stampIn { 0% { opacity: 0; transform: scale(1.6) rotate(-8deg); } 60% { opacity: 1; transform: scale(0.96) rotate(-8deg); } 100% { opacity: 1; transform: scale(1) rotate(-8deg); } }
+  .stamp { animation: stampIn 0.45s cubic-bezier(.2,.9,.3,1.2) forwards; text-align: center; padding: 8px 0; }
+  .stamp .tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.03em; color: var(--stamp); margin: 0 0 4px; }
+  .stamp .winner { font-size: 34px; font-weight: 700; color: var(--stamp); display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; }
+  .stamp .bag-line { font-family: 'IBM Plex Mono', monospace; font-size: 14px; color: var(--stamp); margin: 4px 0 0; }
+  .history-section { padding: 0 24px 24px; }
+  .history-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.03em; color: var(--ink-soft); margin: 0 0 8px; }
+  .history-list { max-height: 128px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .history-row { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-soft); }
+  .footnote { text-align: center; font-size: 11px; color: rgba(38,48,31,0.55); margin-top: 12px; max-width: 420px; }
+  .config-warning {
+    background: #fff3cd; border: 1px solid #f0ad4e; color: #664d03; padding: 12px 16px; border-radius: 4px;
+    max-width: 420px; margin-bottom: 16px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+  <div id="configWarning" class="config-warning" style="display:none;">
+    ⚠️ Configuration Firebase manquante. Ouvre ce fichier et remplace l'objet <code>firebaseConfig</code>
+    en haut du script par celui de ton propre projet Firebase (voir instructions fournies avec ce fichier).
+  </div>
+
+  <div class="ticket-card">
+    <div class="header">
+      <div class="header-top">
+        <p class="eyebrow mono">N° DU JOUR — CORVÉE REPAS</p>
+        <p class="clock mono" id="clock">--:--</p>
+      </div>
+      <h1>Qui va chercher les sacs&nbsp;?</h1>
+      <p class="status mono" id="statusLabel"></p>
+    </div>
+
+    <div class="body">
+      <div class="add-row">
+        <input type="text" id="nameInput" placeholder="Prénom" autocomplete="off">
+        <input type="text" id="bagInput" placeholder="N° de sac" autocomplete="off">
+        <button class="icon-btn" id="addBtn" aria-label="S'inscrire">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </button>
+      </div>
+      <p class="error-msg" id="errorMsg" style="display:none;"></p>
+
+      <div id="listWrap"></div>
+
+      <label class="exclude-label">
+        <input type="checkbox" id="excludeToggle">
+        Écarter le gagnant précédent du tirage
+      </label>
+
+      <div class="action-row">
+        <button class="draw-btn" id="drawBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.4c1.3 0 2.5.6 3.3 1.7l.7 1"/><path d="M22 18h-6.1c-1.3 0-2.5-.6-3.3-1.7l-.6-.9"/><path d="m18 14 4 4-4 4"/></svg>
+          <span id="drawBtnLabel">Lancer le tirage</span>
+        </button>
+        <button class="icon-btn ghost" id="resetBtn" aria-label="Réinitialiser le tirage du jour" title="Réinitialiser le tirage du jour">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+      <p class="hint" id="autoHint"></p>
+    </div>
+
+    <div class="reveal" id="revealWrap" style="display:none;"></div>
+
+    <div class="history-section" id="historySection" style="display:none;">
+      <div class="perf" style="margin-bottom:12px;"></div>
+      <p class="history-tag">HISTORIQUE</p>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+  <p class="footnote">Synchronisé en temps réel entre tous les appareils via Firebase — ouvre cette page sur n'importe quel PC ou mobile connecté à internet.</p>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+  // ============================================================
+  // 1) REMPLACE CET OBJET PAR LA CONFIG DE TON PROJET FIREBASE
+  //    (Firebase console > Paramètres du projet > Tes applications > SDK config)
+  // ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyDipngZ7rA-TgyQQ-eB-1veggfbcmpHd2s",
+  authDomain: "tirage-repas.firebaseapp.com",
+  projectId: "tirage-repas",
+  storageBucket: "tirage-repas.firebasestorage.app",
+  messagingSenderId: "634341227314",
+  appId: "1:634341227314:web:2d00ba1cbee9dbd46d752b",
+  measurementId: "G-7HSTL97R21"
+};
+  // ============================================================
+
+  const isConfigured = firebaseConfig.apiKey !== "REMPLACE_MOI";
+  if (!isConfigured) {
+    document.getElementById("configWarning").style.display = "block";
+  }
+
+  const REG_OPEN_MIN = 8 * 60;        // 08:00
+  const REG_CLOSE_MIN = 11 * 60 + 55; // 11:55
+  const DRAW_MIN = 11 * 60 + 56;      // 11:56
+
+  function todayStr(d = new Date()) {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  function minutesNow(d = new Date()) { return d.getHours() * 60 + d.getMinutes(); }
+  function escapeHtml(str) { const div = document.createElement("div"); div.textContent = str; return div.innerHTML; }
+
+  let app, db;
+  let currentDayId = todayStr();
+  let dayData = { participants: [], winner: null, drawnAt: null };
+  let history = [];
+  let excludeLast = true;
+  let unsubscribeDay = null;
+  let rolling = false;
+  let rollInterval = null;
+
+  const el = (id) => document.getElementById(id);
+  const nameInput = el("nameInput"), bagInput = el("bagInput"), addBtn = el("addBtn"), errorMsg = el("errorMsg");
+  const listWrap = el("listWrap"), excludeToggle = el("excludeToggle"), drawBtn = el("drawBtn");
+  const drawBtnLabel = el("drawBtnLabel"), resetBtn = el("resetBtn"), revealWrap = el("revealWrap");
+  const historySection = el("historySection"), historyList = el("historyList");
+  const clockEl = el("clock"), statusLabelEl = el("statusLabel"), autoHintEl = el("autoHint");
+
+  function dayRef() { return doc(db, "draws", currentDayId); }
+  function historyRef() { return doc(db, "meta", "history"); }
+  function settingsRef() { return doc(db, "meta", "settings"); }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.style.display = msg ? "block" : "none";
+  }
+
+  function render() {
+    const mins = minutesNow();
+    const regOpen = mins >= REG_OPEN_MIN && mins <= REG_CLOSE_MIN;
+    const beforeReg = mins < REG_OPEN_MIN;
+
+    nameInput.disabled = !regOpen;
+    bagInput.disabled = !regOpen;
+    addBtn.disabled = !regOpen;
+
+    let statusText, statusColor;
+    if (dayData.winner) { statusText = "Tirage du jour terminé"; statusColor = "var(--green)"; }
+    else if (regOpen) { statusText = "Inscriptions ouvertes jusqu'à 11h55"; statusColor = "var(--mustard)"; }
+    else if (beforeReg) { statusText = "Inscriptions à partir de 8h00"; statusColor = "var(--ink-soft)"; }
+    else { statusText = "Inscriptions fermées — tirage à 11h56"; statusColor = "var(--stamp)"; }
+    statusLabelEl.textContent = statusText;
+    statusLabelEl.style.color = statusColor;
+
+    if (dayData.participants.length === 0) {
+      listWrap.innerHTML = '<p class="empty-msg">Personne d\'inscrit pour le moment.</p>';
+    } else {
+      listWrap.innerHTML = dayData.participants.map((p, i) => `
+        <div class="name-row">
+          <span class="idx mono">${String(i + 1).padStart(2, "0")} — <span class="name">${escapeHtml(p.name)}</span><span class="bag"> · Sac n°${escapeHtml(p.bag)}</span></span>
+          ${regOpen ? `<button data-name="${escapeHtml(p.name)}" class="remove-btn" aria-label="Retirer ${escapeHtml(p.name)}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>` : ""}
+        </div>
+      `).join("");
+      listWrap.querySelectorAll(".remove-btn").forEach(btn => btn.addEventListener("click", () => removeParticipant(btn.dataset.name)));
+    }
+
+    drawBtn.style.display = dayData.winner ? "none" : "flex";
+    drawBtn.disabled = rolling || dayData.participants.length === 0;
+    drawBtnLabel.textContent = rolling ? "Tirage en cours…" : (mins < DRAW_MIN ? "Lancer le tirage maintenant" : "Lancer le tirage");
+    autoHintEl.textContent = (!dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
+
+    if (rolling) {
+      revealWrap.style.display = "block";
+    } else if (dayData.winner) {
+      revealWrap.style.display = "block";
+      revealWrap.innerHTML = `
+        <div class="perf" style="margin-bottom:16px;"></div>
+        <div class="stamp">
+          <p class="tag">DÉSIGNÉ·E</p>
+          <p class="winner">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            ${escapeHtml(dayData.winner.name)}
+          </p>
+          <p class="bag-line">Sac n°${escapeHtml(dayData.winner.bag)}</p>
+        </div>
+      `;
+    } else {
+      revealWrap.style.display = "none";
+      revealWrap.innerHTML = "";
+    }
+
+    if (history.length === 0) {
+      historySection.style.display = "none";
+    } else {
+      historySection.style.display = "block";
+      historyList.innerHTML = history.map(h => `
+        <div class="history-row"><span>${escapeHtml(h.name)} · Sac n°${escapeHtml(h.bag)}</span><span>${escapeHtml(h.date)}</span></div>
+      `).join("");
+    }
+  }
+
+  async function ensureDayDoc() {
+    const snap = await getDoc(dayRef());
+    if (!snap.exists()) {
+      await setDoc(dayRef(), { participants: [], winner: null, drawnAt: null, date: currentDayId });
+    }
+  }
+
+  function subscribeDay() {
+    if (unsubscribeDay) unsubscribeDay();
+    unsubscribeDay = onSnapshot(dayRef(), (snap) => {
+      if (snap.exists()) {
+        dayData = snap.data();
+      } else {
+        dayData = { participants: [], winner: null, drawnAt: null };
+      }
+      render();
+      checkAutoDraw();
+    }, (err) => console.error("Erreur de synchronisation", err));
+  }
+
+  async function switchDayIfNeeded() {
+    const t = todayStr();
+    if (t !== currentDayId) {
+      currentDayId = t;
+      await ensureDayDoc();
+      subscribeDay();
+    }
+  }
+
+  async function addParticipant() {
+    const name = nameInput.value.trim();
+    const bag = bagInput.value.trim();
+    if (!name || !bag) { showError("Merci d'indiquer un prénom et un numéro de sac."); return; }
+    const mins = minutesNow();
+    if (mins < REG_OPEN_MIN || mins > REG_CLOSE_MIN) { showError("Les inscriptions sont fermées (ouvertes de 8h00 à 11h55)."); return; }
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const data = snap.exists() ? snap.data() : { participants: [], winner: null, drawnAt: null };
+        if (data.participants.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+          throw new Error("DUPLICATE");
+        }
+        tx.set(dayRef(), { ...data, participants: [...data.participants, { name, bag }] });
+      });
+      nameInput.value = ""; bagInput.value = ""; showError("");
+    } catch (e) {
+      if (e.message === "DUPLICATE") showError("Déjà inscrit·e pour aujourd'hui.");
+      else { console.error(e); showError("Erreur réseau, réessaie."); }
+    }
+  }
+
+  async function removeParticipant(name) {
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const data = snap.data();
+        tx.set(dayRef(), { ...data, participants: data.participants.filter(p => p.name !== name) });
+      });
+    } catch (e) { console.error(e); }
+  }
+
+  async function resetDay() {
+    try {
+      await setDoc(dayRef(), { participants: [], winner: null, drawnAt: null, date: currentDayId });
+    } catch (e) { console.error(e); }
+  }
+
+  async function appendHistory(entry) {
+    try {
+      const snap = await getDoc(historyRef());
+      const current = snap.exists() ? (snap.data().entries || []) : [];
+      const next = [entry, ...current].slice(0, 30);
+      await setDoc(historyRef(), { entries: next });
+    } catch (e) { console.error(e); }
+  }
+
+  async function doDraw() {
+    let winnerResult = null;
+    try {
+      winnerResult = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const data = snap.data();
+        if (!data || data.winner) return null;
+        const participants = data.participants || [];
+        if (participants.length === 0) return null;
+        const lastWinnerName = history[0]?.name;
+        let pool = participants;
+        if (excludeLast && lastWinnerName && participants.length > 1) {
+          const filtered = participants.filter(p => p.name !== lastWinnerName);
+          if (filtered.length > 0) pool = filtered;
+        }
+        const chosen = pool[Math.floor(Math.random() * pool.length)];
+        tx.set(dayRef(), { ...data, winner: chosen, drawnAt: serverTimestamp() });
+        return chosen;
+      });
+    } catch (e) { console.error(e); }
+    if (winnerResult) {
+      await appendHistory({ name: winnerResult.name, bag: winnerResult.bag, date: new Date().toLocaleDateString("fr-FR") });
+    }
+    return winnerResult;
+  }
+
+  function animateThenDraw() {
+    if (rolling) return;
+    rolling = true;
+    render();
+    const participants = dayData.participants;
+    let ticks = 0;
+    const maxTicks = 18;
+    rollInterval = setInterval(async () => {
+      ticks += 1;
+      const p = participants[Math.floor(Math.random() * participants.length)];
+      revealWrap.innerHTML = `<p class="rolling-name mono">${escapeHtml(p.name)} · Sac n°${escapeHtml(p.bag)}</p>`;
+      if (ticks >= maxTicks) {
+        clearInterval(rollInterval);
+        rolling = false;
+        await doDraw();
+        render();
+      }
+    }, 90);
+  }
+
+  async function manualDraw() {
+    if (dayData.winner || dayData.participants.length === 0) return;
+    showError("");
+    animateThenDraw();
+  }
+
+  let autoDrawInFlight = false;
+  async function checkAutoDraw() {
+    if (autoDrawInFlight) return;
+    if (dayData.winner) return;
+    if (minutesNow() < DRAW_MIN) return;
+    if (!dayData.participants || dayData.participants.length === 0) return;
+    autoDrawInFlight = true;
+    await doDraw();
+    autoDrawInFlight = false;
+  }
+
+  async function loadSettings() {
+    const snap = await getDoc(settingsRef());
+    if (snap.exists()) { excludeLast = !!snap.data().excludeLast; }
+    excludeToggle.checked = excludeLast;
+    onSnapshot(settingsRef(), (s) => {
+      if (s.exists()) { excludeLast = !!s.data().excludeLast; excludeToggle.checked = excludeLast; }
+    });
+  }
+
+  function subscribeHistory() {
+    onSnapshot(historyRef(), (snap) => {
+      history = snap.exists() ? (snap.data().entries || []) : [];
+      render();
+    });
+  }
+
+  async function init() {
+    if (!isConfigured) return; // on n'initialise pas Firebase tant que la config n'est pas remplie
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    await ensureDayDoc();
+    subscribeDay();
+    subscribeHistory();
+    await loadSettings();
+
+    addBtn.addEventListener("click", addParticipant);
+    nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") bagInput.focus(); });
+    bagInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addParticipant(); });
+    drawBtn.addEventListener("click", manualDraw);
+    resetBtn.addEventListener("click", resetDay);
+    excludeToggle.addEventListener("change", async () => {
+      excludeLast = excludeToggle.checked;
+      try { await setDoc(settingsRef(), { excludeLast }); } catch (e) { console.error(e); }
+    });
+
+    setInterval(() => {
+      clockEl.textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      switchDayIfNeeded();
+      checkAutoDraw();
+      render();
+    }, 8000);
+    clockEl.textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    render();
+  }
+
+  init();
+</script>
+</body>
+</html>
