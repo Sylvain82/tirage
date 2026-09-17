@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Qui va chercher les sacs ? — Tirage au sort</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff6b35">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tirage Repas">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -304,7 +311,7 @@
   }
   function initialsFor(name) { return (name || "?").slice(0, 2).toUpperCase(); }
 
-  const REG_OPEN_MIN = 7 * 60 + 30;        // 07:30
+  const REG_OPEN_MIN = 8 * 60;        // 08:00
   const REG_CLOSE_MIN = 11 * 60 + 55; // 11:55
   const DRAW_MIN = 11 * 60 + 56;      // 11:56
 
@@ -605,6 +612,12 @@
   }
 
   init();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch((err) => console.error("Échec d'enregistrement du service worker", err));
+    });
+  }
 </script>
 </body>
 </html>
