@@ -220,7 +220,7 @@
       <div class="header-top">
         <div class="brand">
           <div class="brand-icon">🥡</div>
-          <p class="eyebrow">Réfectoire Bâtiment B</p>
+          <p class="eyebrow">REFECTORY - Bâtiment B</p>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
           <p class="clock mono" id="clock">--:--</p>
@@ -314,7 +314,7 @@
   }
   function initialsFor(name) { return (name || "?").slice(0, 2).toUpperCase(); }
 
-  const REG_OPEN_MIN = 8 * 60;        // 08:00
+  const REG_OPEN_MIN = 7 * 60;        // 07:00
   const REG_CLOSE_MIN = 11 * 60 + 55; // 11:55
   const DRAW_MIN = 11 * 60 + 56;      // 11:56
 
@@ -421,7 +421,7 @@
     let statusText, statusColor, statusBg;
     if (dayData.winner) { statusText = "Tirage terminé"; statusColor = "var(--success)"; statusBg = "var(--success-soft)"; }
     else if (regOpen) { statusText = "Inscriptions ouvertes jusqu'à 11h55"; statusColor = "var(--accent-ink)"; statusBg = "var(--accent-soft)"; }
-    else if (beforeReg) { statusText = "Inscriptions à partir de 8h00"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
+    else if (beforeReg) { statusText = "Inscriptions à partir de 7h00"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
     else { statusText = "Inscriptions fermées — tirage à 11h56"; statusColor = "var(--danger)"; statusBg = "var(--danger-soft)"; }
     statusLabelEl.textContent = statusText;
     statusPillEl.style.color = statusColor;
