@@ -1,7 +1,7 @@
 {
   "name": "Tirage Repas - Corvée Midi",
-  "short_name": "Tirage Repas",
-  "description": "Tirage au sort pour la corvée des repas du midi",
+  "short_name": "Sacs JVA",
+  "description": "Tirage au sort - Sacs JVA",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
