@@ -1,15 +1,349 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qui va chercher les sacs ? — Tirage au sort</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d4a2e">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sacs JVA">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #eef0f4;
+    --surface: #ffffff;
+    --ink: #14171a;
+    --muted: #6b7280;
+    --line: #e8e9ee;
+    --chip: #f4f5f8;
+    --accent: #1d4a2e;
+    --accent-ink: #152d1d;
+    --accent-soft: #eaf2ec;
+    --success: #16a34a;
+    --success-soft: #eafbf1;
+    --success-border: #d7f3e1;
+    --danger: #e11d48;
+    --danger-soft: #fdecef;
+    --btn-bg: #14171a;
+    --btn-text: #ffffff;
+    --glow1: #dbe8df;
+    --glow2: #e4f6ec;
+    --shadow: rgba(20,23,26,0.28);
+    color-scheme: light;
+  }
+  [data-theme="dark"] {
+    --bg: #0f1115;
+    --surface: #1a1d23;
+    --ink: #f2f3f5;
+    --muted: #9aa0aa;
+    --line: #2a2e36;
+    --chip: #23262e;
+    --accent: #4f9468;
+    --accent-ink: #cfead9;
+    --accent-soft: rgba(79,148,104,0.18);
+    --success: #34d399;
+    --success-soft: rgba(52,211,153,0.14);
+    --success-border: rgba(52,211,153,0.3);
+    --danger: #fb7185;
+    --danger-soft: rgba(251,113,133,0.14);
+    --btn-bg: #f2f3f5;
+    --btn-text: #14171a;
+    --glow1: rgba(79,148,104,0.16);
+    --glow2: rgba(52,211,153,0.1);
+    --shadow: rgba(0,0,0,0.55);
+    color-scheme: dark;
+  }
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      // 1. Enregistrer le Service Worker principal (cache + FCM)
+      navigator.serviceWorker.register("/sw.js")
+        .then((registration) => {
+          console.log("[index.html] ServiceWorker (sw.js) enregistré :", registration);
+        })
+        .catch((err) => {
+          console.error("[index.html] Échec sw.js :", err);
+        });
+
+      // 2. Enregistrer le Service Worker FCM (optionnel si tout est dans sw.js)
+      navigator.serviceWorker.register("/firebase-messaging-sw.js")
+        .then((registration) => {
+          console.log("[index.html] Firebase Messaging SW enregistré :", registration);
+        })
+        .catch((err) => {
+          console.error("[index.html] Échec firebase-messaging-sw.js :", err);
+        });
+    });
+  }
+</script>
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 20px; background:
+      radial-gradient(1200px 500px at 20% -10%, var(--glow1) 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, var(--glow2) 0%, transparent 55%),
+      var(--bg);
+    font-family: 'Manrope', sans-serif; color: var(--ink); transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  h1, .display { font-family: 'Space Grotesk', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  .card {
+    background: var(--surface); width: 100%; max-width: 460px; border-radius: 28px;
+    box-shadow: 0 24px 60px -28px var(--shadow), 0 2px 6px rgba(20,23,26,0.04);
+    overflow: hidden; border: 1px solid var(--line); transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .header { padding: 28px 28px 20px; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 40px; height: 40px; border-radius: 12px; background: #152d1d;
+    display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .brand-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin: 0; text-transform: uppercase; font-weight: 600; }
+  .clock { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 5px; font-weight: 500; }
+  h1 { font-size: 26px; line-height: 1.15; margin: 0; color: var(--ink); font-weight: 700; letter-spacing: -0.01em; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; padding: 7px 13px 7px 10px;
+    border-radius: 999px; font-size: 13px; font-weight: 600;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  .body { padding: 4px 28px 26px; display: flex; flex-direction: column; gap: 18px; }
+
+  .field-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 8px; }
+
+  .add-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .add-row select, .add-row input[type="text"] {
+    padding: 13px 14px; border-radius: 14px; font-size: 15px; background: var(--chip); color: var(--ink);
+    border: 1.5px solid transparent; font-family: 'Manrope', sans-serif; font-weight: 600; outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .add-row select:focus, .add-row input[type="text"]:focus { border-color: var(--accent); background: var(--surface); }
+  #nameInput { flex: 1; min-width: 150px; appearance: none; }
+  #bagInput { width: 110px; }
+  .add-row select:disabled, .add-row input:disabled { opacity: 0.45; }
+
+  .icon-btn {
+    width: 46px; height: 46px; border-radius: 14px; background: var(--btn-bg); color: var(--btn-text); border: none;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
+    transition: transform 0.12s ease, background 0.15s ease;
+  }
+  .icon-btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .icon-btn:disabled { opacity: 0.4; cursor: default; }
+  .icon-btn.ghost { background: var(--chip); color: var(--muted); }
+
+  .error-msg {
+    font-size: 13px; color: var(--danger); background: var(--danger-soft); margin: 0;
+    padding: 10px 13px; border-radius: 12px; font-weight: 600;
+  }
+
+  .empty-msg { font-size: 14px; color: var(--muted); margin: 0; padding: 6px 2px; }
+
+  .roster { display: flex; flex-direction: column; gap: 6px; }
+  .chip-row {
+    display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 14px; background: var(--chip);
+  }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; font-family: 'Space Grotesk', sans-serif;
+  }
+  .chip-row .name { font-weight: 700; font-size: 15px; flex: 1; }
+  .chip-row .bag-badge {
+    font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface); padding: 4px 9px; border-radius: 999px;
+    border: 1px solid var(--line);
+  }
+
+  .lock-note {
+    display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 600;
+    background: var(--chip); padding: 9px 12px; border-radius: 12px;
+  }
+
+  .action-row { display: flex; gap: 10px; }
+  .draw-btn {
+    flex: 1; padding: 15px; border-radius: 16px; border: none; cursor: pointer; background: var(--accent); color: #fff;
+    font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 9px;
+    font-family: 'Manrope', sans-serif; transition: transform 0.12s ease, box-shadow 0.15s ease;
+    box-shadow: 0 10px 24px -10px rgba(29,74,46,0.5);
+  }
+  .draw-btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .draw-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+  .hint { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); margin: 0; text-align: center; }
+
+  .reveal { padding: 0 28px 26px; }
+  .rolling-card {
+    display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; background: var(--chip);
+  }
+  .rolling-card .avatar { width: 46px; height: 46px; font-size: 15px; animation: pulse 0.5s ease-in-out infinite alternate; }
+  @keyframes pulse { from { opacity: 0.55; } to { opacity: 1; } }
+  .rolling-card .rolling-text { font-size: 17px; font-weight: 700; }
+  .rolling-card .rolling-sub { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+  @keyframes popIn { 0% { opacity: 0; transform: scale(0.7) translateY(6px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+  .winner-card {
+    text-align: center; padding: 22px 18px; border-radius: 20px;
+    background: linear-gradient(180deg, var(--success-soft), var(--surface));
+    border: 1px solid var(--success-border); animation: popIn 0.4s cubic-bezier(.22,1.1,.4,1) forwards;
+  }
+  .winner-card .tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: var(--success);
+    margin: 0 0 12px; text-transform: uppercase; font-weight: 700;
+  }
+  .winner-avatar {
+    width: 66px; height: 66px; border-radius: 20px; margin: 0 auto 12px; display: flex; align-items: center;
+    justify-content: center; font-size: 24px; font-weight: 700; color: #fff; font-family: 'Space Grotesk', sans-serif;
+    box-shadow: 0 12px 24px -10px rgba(22,163,74,0.45);
+  }
+  .winner-card .winner-name { font-size: 26px; font-weight: 700; margin: 0; font-family: 'Space Grotesk', sans-serif; }
+  .winner-card .bag-line {
+    display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--success);
+    background: var(--surface); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--success-border);
+  }
+
+  .history-section { padding: 4px 28px 26px; }
+  .history-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px;
+    text-transform: uppercase;
+  }
+  .history-list { max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .history-row {
+    display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 6px 2px;
+  }
+  .history-row .h-avatar { width: 22px; height: 22px; border-radius: 7px; font-size: 9px; }
+  .history-row .h-name { font-weight: 700; flex: 1; }
+  .history-row .h-bag { color: var(--muted); font-weight: 600; }
+  .history-row .h-date { color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  .footnote { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; max-width: 420px; font-weight: 500; }
+
+  .config-warning {
+    background: #fff3cd; border: 1px solid #f0ad4e; color: #664d03; padding: 12px 16px; border-radius: 14px;
+    max-width: 420px; margin-bottom: 18px; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+  <div id="configWarning" class="config-warning" style="display:none;">
+    ⚠️ Configuration Firebase manquante. Ouvre ce fichier et remplace l'objet <code>firebaseConfig</code>
+    en haut du script par celui de ton propre projet Firebase (voir instructions fournies avec ce fichier).
+  </div>
+
+  <div class="card">
+    <div class="header">
+      <div class="header-top">
+        <div class="brand">
+          <div class="brand-icon"><img src="data:image/png;base64,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" alt="Refectory"></div>
+          <p class="eyebrow">REFECTORY - Bâtiment B</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <p class="clock mono" id="clock">--:--</p>
+          <button id="notifToggle" class="icon-btn ghost" style="width:34px;height:34px;border-radius:10px;" aria-label="Activer les notifications">
+            <span id="notifIcon">🔕</span>
+          </button>
+          <button id="themeToggle" class="icon-btn ghost" style="width:34px;height:34px;border-radius:10px;" aria-label="Changer de thème">
+            <span id="themeIcon">🌙</span>
+          </button>
+        </div>
+      </div>
+      <h1>Qui va chercher les sacs&nbsp;?</h1>
+      <span class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusLabel"></span></span>
+    </div>
+
+    <div class="body">
+      <div>
+        <p class="field-label">Inscription</p>
+        <div class="add-row">
+          <select id="nameInput"></select>
+          <input type="text" id="bagInput" placeholder="N° sac" autocomplete="off">
+          <button class="icon-btn" id="addBtn" aria-label="S'inscrire">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+      <p class="error-msg" id="errorMsg" style="display:none;"></p>
+
+      <div>
+        <p class="field-label">Inscrits</p>
+        <div class="roster" id="listWrap"></div>
+      </div>
+
+      <div class="lock-note">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Le gagnant précédent est toujours écarté du tirage
+      </div>
+
+      <div class="action-row">
+        <button class="draw-btn" id="drawBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.4c1.3 0 2.5.6 3.3 1.7l.7 1"/><path d="M22 18h-6.1c-1.3 0-2.5-.6-3.3-1.7l-.6-.9"/><path d="m18 14 4 4-4 4"/></svg>
+          <span id="drawBtnLabel">Lancer le tirage</span>
+        </button>
+        <button class="icon-btn ghost" id="resetBtn" aria-label="Réinitialiser le tirage du jour" title="Réinitialiser le tirage du jour">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
+      </div>
+      <p class="hint" id="autoHint"></p>
+    </div>
+
+    <div class="reveal" id="revealWrap" style="display:none;"></div>
+
+    <div class="history-section" id="historySection" style="display:none;">
+      <p class="history-tag">Historique</p>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+  <p class="footnote">Synchronisé en temps réel entre tous les appareils — ouvre cette page sur n'importe quel PC ou mobile connecté à internet.</p>
+
 <script type="module">
-  // ============================================================
-  // 1. Imports Firebase ( Firestore + Messaging )
-  // ============================================================
+
+  // Demander la permission pour les notifications
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    console.log("Les notifications ne sont pas supportées.");
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      console.log("Permission accordée !");
+
+      // Récupérer le token FCM
+      const messaging = getMessaging(app);
+      const token = await getToken(messaging, {
+        vapidKey: "BAFxMRVQ0b9IVp_9LZ2lOt4aHjnCrBXG7Ik0GUs56dj_a3S0112qA4eAlxWkQl1m5WSC7n7yF7ukRHDgYl-Hkss" // Remplace par ta clé VAPID (voir Firebase Console)
+      });
+      console.log("Token FCM :", token);
+      return token;
+    } else {
+      console.log("Permission refusée.");
+    }
+  } catch (error) {
+    console.error("Erreur :", error);
+  }
+}
+
+// Appeler la fonction au chargement
+requestNotificationPermission();
+  
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
     getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
-  import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging.js";
 
   // ============================================================
-  // 2. Configuration Firebase
+  // 1) REMPLACE CET OBJET PAR LA CONFIG DE TON PROJET FIREBASE
+  //    (Firebase console > Paramètres du projet > Tes applications > SDK config)
   // ============================================================
   const firebaseConfig = {
     apiKey: "AIzaSyDipngZ7rA-TgyQQ-eB-1veggfbcmpHd2s",
@@ -20,65 +354,364 @@
     appId: "1:634341227314:web:2d00ba1cbee9dbd46d752b",
     measurementId: "G-7HSTL97R21",
   };
+  // ============================================================
 
-  // ============================================================
-  // 3. Initialisation Firebase
-  // ============================================================
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const messaging = getMessaging(app);
+  const isConfigured = firebaseConfig.apiKey !== "REMPLACE_MOI";
+  if (!isConfigured) {
+    document.getElementById("configWarning").style.display = "block";
+  }
 
-  // ============================================================
-  // 4. Demander la permission et récupérer le token FCM
-  // ============================================================
-  async function requestNotificationPermission() {
-    if (!("Notification" in window)) {
-      console.log("Les notifications ne sont pas supportées.");
+  const PARTICIPANTS_LIST = ["Sylvain", "Clément", "Jonathan", "Anthony", "Kevin", "JB", "Anaïs", "Marion"];
+  const AVATAR_COLORS = ["#ff6b35", "#16a34a", "#2563eb", "#9333ea", "#db2777", "#059669", "#d97706", "#0ea5e9"];
+  function colorFor(name) {
+    const i = PARTICIPANTS_LIST.indexOf(name);
+    return AVATAR_COLORS[i >= 0 ? i % AVATAR_COLORS.length : 0];
+  }
+  function initialsFor(name) { return (name || "?").slice(0, 2).toUpperCase(); }
+
+  const REG_OPEN_MIN = 7 * 60;        // 07:00
+  const REG_CLOSE_MIN = 11 * 60 + 55; // 11:55
+  const DRAW_MIN = 11 * 60 + 56;      // 11:56
+
+  function todayStr(d = new Date()) {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  function minutesNow(d = new Date()) { return d.getHours() * 60 + d.getMinutes(); }
+  function escapeHtml(str) { const div = document.createElement("div"); div.textContent = str; return div.innerHTML; }
+
+  let app, db;
+  let currentDayId = todayStr();
+  let dayData = { participants: [], winner: null, drawnAt: null };
+  let history = [];
+  const excludeLast = true; // verrouillé : le gagnant précédent est toujours écarté du tirage suivant
+  let unsubscribeDay = null;
+  let rolling = false;
+  let rollInterval = null;
+
+  const el = (id) => document.getElementById(id);
+  const nameInput = el("nameInput"), bagInput = el("bagInput"), addBtn = el("addBtn"), errorMsg = el("errorMsg");
+  const listWrap = el("listWrap"), drawBtn = el("drawBtn");
+  const drawBtnLabel = el("drawBtnLabel"), resetBtn = el("resetBtn"), revealWrap = el("revealWrap");
+  const historySection = el("historySection"), historyList = el("historyList");
+  const clockEl = el("clock"), statusPillEl = el("statusPill"), statusDotEl = el("statusDot"), statusLabelEl = el("statusLabel"), autoHintEl = el("autoHint");
+  const themeToggle = el("themeToggle"), themeIcon = el("themeIcon");
+  const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
+
+  function updateNotifIcon() {
+    if (!("Notification" in window)) { notifIcon.textContent = "🔕"; return; }
+    notifIcon.textContent = Notification.permission === "granted" ? "🔔" : "🔕";
+  }
+  function notifyWinner(winner) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+      new Notification("Tirage du jour 🥡", {
+        body: `${winner.name} a été désigné·e — Sac n°${winner.bag}`,
+        icon: "icon-192.png",
+      });
+    } catch (e) { console.error(e); }
+  }
+  notifToggle.addEventListener("click", async () => {
+    if (!("Notification" in window)) { showError("Les notifications ne sont pas supportées par ce navigateur."); return; }
+    if (Notification.permission === "granted") {
+      new Notification("Notifications actives ✅", { body: "Tu seras prévenu·e ici si l'appli reste ouverte au moment du tirage." });
       return;
     }
+    if (Notification.permission === "denied") {
+      showError("Notifications bloquées — active-les dans les réglages du navigateur pour ce site.");
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    updateNotifIcon();
+    if (perm === "granted") {
+      new Notification("Notifications activées 🎉", { body: "Tu seras prévenu·e ici si l'appli reste ouverte au moment du tirage." });
+    }
+  });
+  updateNotifIcon();
 
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        console.log("✅ Permission accordée pour les notifications !");
+  const THEME_KEY = "lunch-draw-theme";
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    themeIcon.textContent = theme === "dark" ? "☀️" : "🌙";
+  }
+  function initTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    const preferred = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    applyTheme(preferred);
+  }
+  themeToggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    const next = current === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+  initTheme();
 
-        // Récupérer le token FCM
-        const token = await getToken(messaging, {
-          vapidKey: "BAFxMRVQ0b9IVp_9LZ2lOt4aHjnCrBXG7Ik0GUs56dj_a3S0112qA4eAlxWkQl1m5WSC7n7yF7ukRHDgYl-Hkss"
-        });
-        console.log("🔥 Token FCM :", token); // <-- LE TOKEN APPARAÎT ICI DANS LA CONSOLE
-        return token;
-      } else {
-        console.log("❌ Permission refusée.");
-      }
-    } catch (error) {
-      console.error("Erreur FCM :", error);
+  function dayRef() { return doc(db, "draws", currentDayId); }
+  function historyRef() { return doc(db, "meta", "history"); }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.style.display = msg ? "block" : "none";
+  }
+
+  function render() {
+    const mins = minutesNow();
+    const regOpen = mins >= REG_OPEN_MIN && mins <= REG_CLOSE_MIN;
+    const beforeReg = mins < REG_OPEN_MIN;
+
+    const alreadyIn = new Set(dayData.participants.map(p => p.name));
+    const remaining = PARTICIPANTS_LIST.filter(n => !alreadyIn.has(n));
+    const prevSelection = nameInput.value;
+    nameInput.innerHTML = remaining.length > 0
+      ? remaining.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("")
+      : `<option value="">Tout le monde est inscrit</option>`;
+    if (remaining.includes(prevSelection)) nameInput.value = prevSelection;
+
+    const canRegister = regOpen && remaining.length > 0;
+    nameInput.disabled = !canRegister;
+    bagInput.disabled = !canRegister;
+    addBtn.disabled = !canRegister;
+
+    let statusText, statusColor, statusBg;
+    if (dayData.winner) { statusText = "Tirage terminé"; statusColor = "var(--success)"; statusBg = "var(--success-soft)"; }
+    else if (regOpen) { statusText = "Inscriptions ouvertes jusqu'à 11h55"; statusColor = "var(--accent-ink)"; statusBg = "var(--accent-soft)"; }
+    else if (beforeReg) { statusText = "Inscriptions à partir de 7h00"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
+    else { statusText = "Inscriptions fermées — tirage à 11h56"; statusColor = "var(--danger)"; statusBg = "var(--danger-soft)"; }
+    statusLabelEl.textContent = statusText;
+    statusPillEl.style.color = statusColor;
+    statusPillEl.style.background = statusBg;
+    statusDotEl.style.background = statusColor;
+
+    if (dayData.participants.length === 0) {
+      listWrap.innerHTML = '<p class="empty-msg">Personne d\'inscrit pour le moment.</p>';
+    } else {
+      listWrap.innerHTML = dayData.participants.map((p) => `
+        <div class="chip-row">
+          <div class="avatar" style="background:${colorFor(p.name)}">${initialsFor(p.name)}</div>
+          <span class="name">${escapeHtml(p.name)}</span>
+          <span class="bag-badge">Sac n°${escapeHtml(p.bag)}</span>
+        </div>
+      `).join("");
+    }
+
+    drawBtn.style.display = dayData.winner ? "none" : "flex";
+    drawBtn.disabled = rolling || dayData.participants.length === 0;
+    drawBtnLabel.textContent = rolling ? "Tirage en cours…" : (mins < DRAW_MIN ? "Lancer le tirage maintenant" : "Lancer le tirage");
+    autoHintEl.textContent = (!dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
+
+    if (rolling) {
+      revealWrap.style.display = "block";
+    } else if (dayData.winner) {
+      revealWrap.style.display = "block";
+      revealWrap.innerHTML = `
+        <div class="winner-card">
+          <p class="tag">Désigné·e</p>
+          <div class="winner-avatar" style="background:${colorFor(dayData.winner.name)}">${initialsFor(dayData.winner.name)}</div>
+          <p class="winner-name">${escapeHtml(dayData.winner.name)}</p>
+          <span class="bag-line">Sac n°${escapeHtml(dayData.winner.bag)}</span>
+        </div>
+      `;
+    } else {
+      revealWrap.style.display = "none";
+      revealWrap.innerHTML = "";
+    }
+
+    if (history.length === 0) {
+      historySection.style.display = "none";
+    } else {
+      historySection.style.display = "block";
+      historyList.innerHTML = history.map(h => `
+        <div class="history-row">
+          <div class="avatar h-avatar" style="background:${colorFor(h.name)}">${initialsFor(h.name)}</div>
+          <span class="h-name">${escapeHtml(h.name)}</span>
+          <span class="h-bag">Sac n°${escapeHtml(h.bag)}</span>
+          <span class="h-date">${escapeHtml(h.date)}</span>
+        </div>
+      `).join("");
     }
   }
 
-  // ============================================================
-  // 5. Écouter les messages en premier plan (optionnel)
-  // ============================================================
-  onMessage(messaging, (payload) => {
-    console.log("Message FCM reçu en premier plan :", payload);
-    const notificationTitle = payload.notification?.title || "Tirage du jour 🥡";
-    const notificationOptions = {
-      body: payload.notification?.body || "Un gagnant a été désigné !",
-      icon: "/icon-192.png",
-    };
-    new Notification(notificationTitle, notificationOptions);
-  });
+  async function ensureDayDoc() {
+    const snap = await getDoc(dayRef());
+    if (!snap.exists()) {
+      await setDoc(dayRef(), { participants: [], winner: null, drawnAt: null, date: currentDayId });
+    }
+  }
 
-  // ============================================================
-  // 6. Appeler requestNotificationPermission() après l'init
-  // ============================================================
-  requestNotificationPermission();
+  function subscribeDay() {
+    if (unsubscribeDay) unsubscribeDay();
+    let firstSnapshot = true;
+    let prevWinner = null;
+    unsubscribeDay = onSnapshot(dayRef(), (snap) => {
+      const newData = snap.exists() ? snap.data() : { participants: [], winner: null, drawnAt: null };
+      if (!firstSnapshot && !prevWinner && newData.winner) {
+        notifyWinner(newData.winner);
+      }
+      prevWinner = newData.winner;
+      firstSnapshot = false;
+      dayData = newData;
+      render();
+      checkAutoDraw();
+    }, (err) => console.error("Erreur de synchronisation", err));
+  }
 
-  // ============================================================
-  // 7. Le reste de ton code existant (PARTICIPANTS_LIST, fonctions, etc.)
-  // ============================================================
-  const isConfigured = true; // Ton firebaseConfig est déjà rempli
-  const PARTICIPANTS_LIST = ["Sylvain", "Clément", "Jonathan", "Anthony", "Kevin", "JB", "Anaïs", "Marion"];
-  const AVATAR_COLORS = ["#ff6b35", "#16a34a", "#2563eb", "#9333ea", "#db2777", "#059669", "#d97706", "#0ea5e9"];
-  // ... (le reste de ton code existant)
+  async function switchDayIfNeeded() {
+    const t = todayStr();
+    if (t !== currentDayId) {
+      currentDayId = t;
+      await ensureDayDoc();
+      subscribeDay();
+    }
+  }
+
+  async function addParticipant() {
+    const name = nameInput.value;
+    const bag = bagInput.value.trim();
+    if (!name || !PARTICIPANTS_LIST.includes(name)) { showError("Choisis un nom dans la liste."); return; }
+    if (!bag) { showError("Merci d'indiquer un numéro de sac."); return; }
+    const mins = minutesNow();
+    if (mins < REG_OPEN_MIN || mins > REG_CLOSE_MIN) { showError("Les inscriptions sont fermées (ouvertes de 7h00 à 11h55)."); return; }
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const data = snap.exists() ? snap.data() : { participants: [], winner: null, drawnAt: null };
+        if (data.participants.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+          throw new Error("DUPLICATE");
+        }
+        tx.set(dayRef(), { ...data, participants: [...data.participants, { name, bag }] });
+      });
+      nameInput.value = ""; bagInput.value = ""; showError("");
+    } catch (e) {
+      if (e.message === "DUPLICATE") showError("Déjà inscrit·e pour aujourd'hui.");
+      else { console.error(e); showError("Erreur réseau, réessaie."); }
+    }
+  }
+
+  async function resetDay() {
+    try {
+      await setDoc(dayRef(), { participants: [], winner: null, drawnAt: null, date: currentDayId });
+    } catch (e) { console.error(e); }
+  }
+
+  async function appendHistory(entry) {
+    try {
+      const snap = await getDoc(historyRef());
+      const current = snap.exists() ? (snap.data().entries || []) : [];
+      const next = [entry, ...current].slice(0, 30);
+      await setDoc(historyRef(), { entries: next });
+    } catch (e) { console.error(e); }
+  }
+
+  async function doDraw() {
+    let winnerResult = null;
+    try {
+      winnerResult = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const data = snap.data();
+        if (!data || data.winner) return null;
+        const participants = data.participants || [];
+        if (participants.length === 0) return null;
+        const lastWinnerName = history[0]?.name;
+        let pool = participants;
+        if (excludeLast && lastWinnerName && participants.length > 1) {
+          const filtered = participants.filter(p => p.name !== lastWinnerName);
+          if (filtered.length > 0) pool = filtered;
+        }
+        const chosen = pool[Math.floor(Math.random() * pool.length)];
+        tx.set(dayRef(), { ...data, winner: chosen, drawnAt: serverTimestamp() });
+        return chosen;
+      });
+    } catch (e) { console.error(e); }
+    if (winnerResult) {
+      await appendHistory({ name: winnerResult.name, bag: winnerResult.bag, date: new Date().toLocaleDateString("fr-FR") });
+    }
+    return winnerResult;
+  }
+
+  function animateThenDraw() {
+    if (rolling) return;
+    rolling = true;
+    render();
+    const participants = dayData.participants;
+    let ticks = 0;
+    const maxTicks = 18;
+    rollInterval = setInterval(async () => {
+      ticks += 1;
+      const p = participants[Math.floor(Math.random() * participants.length)];
+      revealWrap.innerHTML = `
+        <div class="rolling-card">
+          <div class="avatar" style="background:${colorFor(p.name)}">${initialsFor(p.name)}</div>
+          <div>
+            <p class="rolling-text">${escapeHtml(p.name)}</p>
+            <p class="rolling-sub">Sac n°${escapeHtml(p.bag)}</p>
+          </div>
+        </div>
+      `;
+      if (ticks >= maxTicks) {
+        clearInterval(rollInterval);
+        rolling = false;
+        await doDraw();
+        render();
+      }
+    }, 90);
+  }
+
+  async function manualDraw() {
+    if (dayData.winner || dayData.participants.length === 0) return;
+    showError("");
+    animateThenDraw();
+  }
+
+  let autoDrawInFlight = false;
+  async function checkAutoDraw() {
+    if (autoDrawInFlight) return;
+    if (dayData.winner) return;
+    if (minutesNow() < DRAW_MIN) return;
+    if (!dayData.participants || dayData.participants.length === 0) return;
+    autoDrawInFlight = true;
+    await doDraw();
+    autoDrawInFlight = false;
+  }
+
+  function subscribeHistory() {
+    onSnapshot(historyRef(), (snap) => {
+      history = snap.exists() ? (snap.data().entries || []) : [];
+      render();
+    });
+  }
+
+  async function init() {
+    if (!isConfigured) return; // on n'initialise pas Firebase tant que la config n'est pas remplie
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    await ensureDayDoc();
+    subscribeDay();
+    subscribeHistory();
+
+    addBtn.addEventListener("click", addParticipant);
+    nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") bagInput.focus(); });
+    bagInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addParticipant(); });
+    drawBtn.addEventListener("click", manualDraw);
+    resetBtn.addEventListener("click", resetDay);
+
+    setInterval(() => {
+      clockEl.textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      switchDayIfNeeded();
+      checkAutoDraw();
+      render();
+    }, 8000);
+    clockEl.textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    render();
+  }
+
+  init();
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch((err) => console.error("Échec d'enregistrement du service worker", err));
+    });
+  }
 </script>
+</body>
+</html>
