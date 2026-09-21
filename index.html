@@ -59,7 +59,29 @@
     --shadow: rgba(0,0,0,0.55);
     color-scheme: dark;
   }
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      // 1. Enregistrer le Service Worker principal (cache + FCM)
+      navigator.serviceWorker.register("/sw.js")
+        .then((registration) => {
+          console.log("[index.html] ServiceWorker (sw.js) enregistré :", registration);
+        })
+        .catch((err) => {
+          console.error("[index.html] Échec sw.js :", err);
+        });
 
+      // 2. Enregistrer le Service Worker FCM (optionnel si tout est dans sw.js)
+      navigator.serviceWorker.register("/firebase-messaging-sw.js")
+        .then((registration) => {
+          console.log("[index.html] Firebase Messaging SW enregistré :", registration);
+        })
+        .catch((err) => {
+          console.error("[index.html] Échec firebase-messaging-sw.js :", err);
+        });
+    });
+  }
+</script>
   body {
     margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 32px 20px; background:
@@ -283,6 +305,37 @@
   <p class="footnote">Synchronisé en temps réel entre tous les appareils — ouvre cette page sur n'importe quel PC ou mobile connecté à internet.</p>
 
 <script type="module">
+
+  // Demander la permission pour les notifications
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    console.log("Les notifications ne sont pas supportées.");
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      console.log("Permission accordée !");
+
+      // Récupérer le token FCM
+      const messaging = getMessaging(app);
+      const token = await getToken(messaging, {
+        vapidKey: "BAFxMRVQ0b9IVp_9LZ2lOt4aHjnCrBXG7Ik0GUs56dj_a3S0112qA4eAlxWkQl1m5WSC7n7yF7ukRHDgYl-Hkss" // Remplace par ta clé VAPID (voir Firebase Console)
+      });
+      console.log("Token FCM :", token);
+      return token;
+    } else {
+      console.log("Permission refusée.");
+    }
+  } catch (error) {
+    console.error("Erreur :", error);
+  }
+}
+
+// Appeler la fonction au chargement
+requestNotificationPermission();
+  
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
     getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp
