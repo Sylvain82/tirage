@@ -1,0 +1,9 @@
+{
+  "name": "notify-winner-script",
+  "private": true,
+  "description": "Envoie une notification Web Push quand un gagnant est désigné (exécuté par GitHub Actions)",
+  "dependencies": {
+    "firebase-admin": "^12.1.0",
+    "web-push": "^3.6.7"
+  }
+}
