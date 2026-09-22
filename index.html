@@ -60,29 +60,6 @@
     color-scheme: dark;
   }
 </style>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      // 1. Enregistrer le Service Worker principal (cache + FCM)
-      navigator.serviceWorker.register("/sw.js")
-        .then((registration) => {
-          console.log("[index.html] ServiceWorker (sw.js) enregistré :", registration);
-        })
-        .catch((err) => {
-          console.error("[index.html] Échec sw.js :", err);
-        });
-
-      // 2. Enregistrer le Service Worker FCM (optionnel si tout est dans sw.js)
-      navigator.serviceWorker.register("/firebase-messaging-sw.js")
-        .then((registration) => {
-          console.log("[index.html] Firebase Messaging SW enregistré :", registration);
-        })
-        .catch((err) => {
-          console.error("[index.html] Échec firebase-messaging-sw.js :", err);
-        });
-    });
-  }
-</script>
 
 <style>
 
@@ -172,6 +149,15 @@
   .lock-note {
     display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 600;
     background: var(--chip); padding: 9px 12px; border-radius: 12px;
+  }
+
+  .token-box {
+    background: var(--accent-soft); border: 1px solid var(--success-border); border-radius: 12px; padding: 10px 12px;
+  }
+  .token-box .token-label { font-size: 11px; color: var(--accent-ink); font-weight: 600; margin: 0 0 6px; line-height: 1.4; }
+  .token-box .token-value {
+    display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink); word-break: break-all;
+    background: var(--surface); padding: 6px 8px; border-radius: 8px; user-select: all;
   }
 
   .action-row { display: flex; gap: 10px; }
@@ -288,6 +274,11 @@
         Le gagnant précédent est toujours écarté du tirage
       </div>
 
+      <div class="token-box" id="tokenBox" style="display:none;">
+        <p class="token-label">🔔 Notifications push</p>
+        <code class="token-value" id="tokenValue"></code>
+      </div>
+
       <div class="action-row">
         <button class="draw-btn" id="drawBtn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.4c1.3 0 2.5.6 3.3 1.7l.7 1"/><path d="M22 18h-6.1c-1.3 0-2.5-.6-3.3-1.7l-.6-.9"/><path d="m18 14 4 4-4 4"/></svg>
@@ -310,41 +301,27 @@
   <p class="footnote">Synchronisé en temps réel entre tous les appareils — ouvre cette page sur n'importe quel PC ou mobile connecté à internet.</p>
 
 <script type="module">
-
-  // Demander la permission pour les notifications
-async function requestNotificationPermission() {
-  if (!("Notification" in window)) {
-    console.log("Les notifications ne sont pas supportées.");
-    return;
-  }
-
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      console.log("Permission accordée !");
-
-      // Récupérer le token FCM
-      const messaging = getMessaging(app);
-      const token = await getToken(messaging, {
-        vapidKey: "BAFxMRVQ0b9IVp_9LZ2lOt4aHjnCrBXG7Ik0GUs56dj_a3S0112qA4eAlxWkQl1m5WSC7n7yF7ukRHDgYl-Hkss" // Remplace par ta clé VAPID (voir Firebase Console)
-      });
-      console.log("Token FCM :", token);
-      return token;
-    } else {
-      console.log("Permission refusée.");
-    }
-  } catch (error) {
-    console.error("Erreur :", error);
-  }
-}
-
-// Appeler la fonction au chargement
-requestNotificationPermission();
-  
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
     getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+  // Clé publique VAPID pour le Web Push natif (indépendant de Firebase Cloud Messaging,
+  // donc pas besoin du plan payant Blaze). La clé privée correspondante vit uniquement
+  // côté GitHub Actions (secret), jamais ici.
+  const VAPID_PUBLIC_KEY = "BC-svjhHg8pYsZ_2jC5JQ0p1RxZT1sxb-qiM_vC5omhxIG4R9w7rUMu-Z-Us_zWfNzbF7zrxwgfSZukGg-Gp5IA";
+  let swRegistration = null; // capturé une fois le service worker enregistré (voir tout en bas)
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  }
+
+  async function sha256Hex(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
 
   // ============================================================
   // 1) REMPLACE CET OBJET PAR LA CONFIG DE TON PROJET FIREBASE
@@ -402,35 +379,82 @@ requestNotificationPermission();
   const clockEl = el("clock"), statusPillEl = el("statusPill"), statusDotEl = el("statusDot"), statusLabelEl = el("statusLabel"), autoHintEl = el("autoHint");
   const themeToggle = el("themeToggle"), themeIcon = el("themeIcon");
   const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
+  const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
 
   function updateNotifIcon() {
     if (!("Notification" in window)) { notifIcon.textContent = "🔕"; return; }
     notifIcon.textContent = Notification.permission === "granted" ? "🔔" : "🔕";
   }
-  function notifyWinner(winner) {
+
+  // IMPORTANT : sur Chrome Android (et la plupart des navigateurs mobiles),
+  // le constructeur `new Notification(...)` est interdit depuis une page —
+  // il faut obligatoirement passer par le Service Worker
+  // (`registration.showNotification(...)`), qui fonctionne aussi bien sur
+  // PC que sur mobile. C'est ce qui causait l'absence de notifications sur Android.
+  async function showLocalNotification(title, options) {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     try {
-      new Notification("Tirage du jour 🥡", {
-        body: `${winner.name} a été désigné·e — Sac n°${winner.bag}`,
-        icon: "icon-192.png",
-      });
-    } catch (e) { console.error(e); }
+      if (swRegistration) {
+        await swRegistration.showNotification(title, options);
+      } else if (!/Android/i.test(navigator.userAgent)) {
+        // filet de sécurité pour d'anciens navigateurs desktop sans SW actif
+        new Notification(title, options);
+      }
+    } catch (e) { console.error("Erreur d'affichage de la notification", e); }
   }
+
+  function notifyWinner(winner) {
+    showLocalNotification("Tirage du jour 🥡", {
+      body: `${winner.name} a été désigné·e — Sac n°${winner.bag}`,
+      icon: "icon-192.png",
+    });
+  }
+
+  async function subscribeToPush() {
+    if (!db || !swRegistration) return;
+    try {
+      let subscription = await swRegistration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await swRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+      const subJson = subscription.toJSON();
+      const docId = await sha256Hex(subJson.endpoint);
+      await setDoc(doc(db, "pushSubscriptions", docId), {
+        ...subJson,
+        updatedAt: serverTimestamp(),
+        userAgent: navigator.userAgent,
+      });
+      showSubscriptionConfirmed();
+    } catch (e) {
+      console.error("Erreur lors de l'abonnement Web Push", e);
+      showError("Notifications activées ici, mais l'abonnement push a échoué (voir la console).");
+    }
+  }
+
+  function showSubscriptionConfirmed() {
+    tokenBox.style.display = "block";
+    tokenValue.textContent = "Cet appareil recevra les notifications même une fois l'appli fermée.";
+  }
+
   notifToggle.addEventListener("click", async () => {
     if (!("Notification" in window)) { showError("Les notifications ne sont pas supportées par ce navigateur."); return; }
-    if (Notification.permission === "granted") {
-      new Notification("Notifications actives ✅", { body: "Tu seras prévenu·e ici si l'appli reste ouverte au moment du tirage." });
-      return;
-    }
     if (Notification.permission === "denied") {
       showError("Notifications bloquées — active-les dans les réglages du navigateur pour ce site.");
       return;
     }
-    const perm = await Notification.requestPermission();
-    updateNotifIcon();
-    if (perm === "granted") {
-      new Notification("Notifications activées 🎉", { body: "Tu seras prévenu·e ici si l'appli reste ouverte au moment du tirage." });
+    if (Notification.permission !== "granted") {
+      const perm = await Notification.requestPermission();
+      updateNotifIcon();
+      if (perm !== "granted") return;
     }
+    await showLocalNotification("Notifications activées 🎉", {
+      body: "Tu seras prévenu·e ici si l'appli reste ouverte au moment du tirage.",
+      icon: "icon-192.png",
+    });
+    await subscribeToPush();
   });
   updateNotifIcon();
 
@@ -714,7 +738,9 @@ requestNotificationPermission();
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch((err) => console.error("Échec d'enregistrement du service worker", err));
+      navigator.serviceWorker.register("sw.js")
+        .then((registration) => { swRegistration = registration; })
+        .catch((err) => console.error("Échec d'enregistrement du service worker", err));
     });
   }
 </script>
