@@ -63,7 +63,10 @@ async function main() {
       subsSnap.docs.map(async (docSnap) => {
         const subscription = docSnap.data();
         try {
-          await webpush.sendNotification(subscription, payload);
+          await webpush.sendNotification(subscription, payload, {
+            urgency: "high", // demande une livraison prioritaire, pour éviter le retard lié au mode veille d'Android
+            TTL: 3600, // 1h : si jamais non livrée tout de suite, reste valable une heure puis est abandonnée
+          });
           sent += 1;
         } catch (err) {
           console.error("Échec d'envoi, statut :", err.statusCode, err.body || "");
