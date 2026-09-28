@@ -2,10 +2,10 @@ name: Notify winner
 
 on:
   schedule:
-    # Toutes les 5 minutes, de 4h00 à 11h59 UTC — couvre 6h/7h à 13h/14h
+    # Du lundi au vendredi uniquement, toutes les 5 minutes, de 4h00 à 11h59 UTC — couvre 6h/7h à 13h/14h
     # heure de Paris selon l'heure d'été ou d'hiver, avec de la marge
     # autour du créneau d'inscription (7h00-11h55) et du tirage (11h56).
-    - cron: "*/5 4-11 * * *"
+    - cron: "*/5 4-11 * * 1-5"
   workflow_dispatch: {} # permet de le lancer manuellement depuis l'onglet Actions, pour tester
 
 jobs:
