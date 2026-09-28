@@ -176,6 +176,31 @@
   }
   .modal-select:focus { border-color: var(--accent); }
 
+  /* Avatars avec émoji : fond teinté (couleur de la personne, très léger) au lieu du fond plein + initiales */
+  .avatar.has-emoji { font-size: 19px; }
+  .winner-avatar.has-emoji { font-size: 32px; }
+  .rolling-card .avatar.has-emoji { font-size: 24px; }
+  .history-row .h-avatar.has-emoji { font-size: 13px; }
+  .chip-row .avatar[data-emoji-for] { cursor: pointer; transition: transform 0.12s ease; }
+  .chip-row .avatar[data-emoji-for]:hover { transform: scale(1.08); }
+
+  .emoji-btn {
+    width: 46px; height: 46px; border-radius: 14px; background: var(--chip); border: 1.5px solid transparent;
+    font-size: 22px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    padding: 0; transition: transform 0.12s ease, border-color 0.15s ease;
+  }
+  .emoji-btn:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--accent); }
+  .emoji-btn:disabled { opacity: 0.45; cursor: default; }
+  .emoji-grid {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; max-height: 240px; overflow-y: auto; margin: 0 0 16px;
+  }
+  .emoji-opt {
+    aspect-ratio: 1; border: none; background: var(--chip); border-radius: 10px; font-size: 21px; cursor: pointer;
+    padding: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .emoji-opt:hover { background: var(--accent-soft); }
+  .emoji-opt.selected { outline: 2px solid var(--accent); }
+
   .link-btn {
     display: block; margin: 14px auto 0; background: none; border: none; cursor: pointer; padding: 4px 6px;
     color: var(--muted); font-size: 12.5px; font-weight: 600; font-family: 'Manrope', sans-serif;
@@ -290,6 +315,7 @@
         <p class="field-label">Inscription</p>
         <div class="add-row">
           <select id="nameInput"></select>
+          <button type="button" class="emoji-btn" id="emojiBtn" aria-label="Choisir l'émoji" title="Choisir l'émoji">🙂</button>
           <input type="text" id="bagInput" placeholder="N° sac" autocomplete="off">
           <button class="icon-btn" id="addBtn" aria-label="S'inscrire">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -346,6 +372,17 @@
     </div>
   </div>
 
+<div class="modal-backdrop" id="emojiModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
+      <h2 id="emojiTitle"></h2>
+      <div class="emoji-grid" id="emojiGrid"></div>
+      <div class="modal-actions">
+        <button class="modal-btn ghost" id="emojiNone">Initiales</button>
+        <button class="modal-btn ghost" id="emojiCancel">Annuler</button>
+      </div>
+    </div>
+  </div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
@@ -395,6 +432,13 @@
     const i = PARTICIPANTS_LIST.indexOf(name);
     return AVATAR_COLORS[i >= 0 ? i % AVATAR_COLORS.length : 0];
   }
+  function emojiFor(name) { return emojis[name] || ""; }
+  function avatarClass(name) { return emojiFor(name) ? " has-emoji" : ""; }
+  function avatarStyle(name) {
+    // avec émoji : fond très léger de la couleur de la personne (hex + alpha) ; sans : fond plein + initiales
+    return emojiFor(name) ? `background:${colorFor(name)}26` : `background:${colorFor(name)}`;
+  }
+  function avatarInner(name) { const e = emojiFor(name); return e ? escapeHtml(e) : initialsFor(name); }
   function bagText(bag) { return bag ? `Sac n°${bag}` : ""; }
   function initialsFor(name) { return (name || "?").slice(0, 2).toUpperCase(); }
 
@@ -415,6 +459,7 @@
   let currentDayId = todayStr();
   let dayData = { participants: [], winner: null, drawnAt: null };
   let history = [];
+  let emojis = {}; // { "Prénom": "🦊" } — partagé entre tous les appareils (Firestore meta/emojis)
   const excludeLast = true; // verrouillé : le gagnant précédent est toujours écarté du tirage suivant
   let unsubscribeDay = null;
   let rolling = false;
@@ -429,8 +474,69 @@
   const themeToggle = el("themeToggle"), themeIcon = el("themeIcon");
   const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
+  const emojiBtn = el("emojiBtn"), emojiModal = el("emojiModal"), emojiTitle = el("emojiTitle"), emojiGrid = el("emojiGrid");
+  const emojiNone = el("emojiNone"), emojiCancel = el("emojiCancel");
   const confirmModal = el("confirmModal"), confirmTitle = el("confirmTitle"), confirmText = el("confirmText");
   const confirmOk = el("confirmOk"), confirmCancel = el("confirmCancel"), confirmSelect = el("confirmSelect");
+
+  const EMOJI_CHOICES = [
+    "🦊","🐼","🐨","🦁","🐯","🐸","🐵","🐧","🦉","🦄","🐙","🦖","🐢","🐝","🦋","🐶",
+    "🐱","🐰","🐻","🐮","🐷","🐔","🦆","🐳","🍕","🍔","🍟","🌮","🍣","🍜","🥑","🍓",
+    "🍉","🍌","🥐","🍩","🍪","☕","🍺","🥦","🌶️","🧀","⚽","🎸","🎮","🚴","⭐","🔥",
+    "🌈","🚀","👑","🎯","🧠","💪","😎","🤓","🥳","😴","🤠","🥷","🧙","🦸","🤖","👻",
+  ];
+
+  // Sélecteur d'émoji : retourne l'émoji choisi, "" pour revenir aux initiales, ou undefined si annulé.
+  function pickEmoji(name) {
+    return new Promise((resolve) => {
+      const current = emojiFor(name);
+      emojiTitle.textContent = `Émoji de ${name}`;
+      emojiGrid.innerHTML = EMOJI_CHOICES.map(e =>
+        `<button type="button" class="emoji-opt${e === current ? " selected" : ""}" data-e="${e}">${e}</button>`
+      ).join("");
+      emojiModal.style.display = "flex";
+
+      const finish = (value) => {
+        emojiModal.style.display = "none";
+        emojiGrid.removeEventListener("click", onGrid);
+        emojiNone.removeEventListener("click", onNone);
+        emojiCancel.removeEventListener("click", onCancel);
+        emojiModal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKey);
+        resolve(value);
+      };
+      const onGrid = (ev) => { const b = ev.target.closest(".emoji-opt"); if (b) finish(b.dataset.e); };
+      const onNone = () => finish("");
+      const onCancel = () => finish(undefined);
+      const onBackdrop = (ev) => { if (ev.target === emojiModal) finish(undefined); };
+      const onKey = (ev) => { if (ev.key === "Escape") finish(undefined); };
+
+      emojiGrid.addEventListener("click", onGrid);
+      emojiNone.addEventListener("click", onNone);
+      emojiCancel.addEventListener("click", onCancel);
+      emojiModal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKey);
+    });
+  }
+
+  async function saveEmoji(name, emoji) {
+    if (!db) return;
+    emojis = { ...emojis, [name]: emoji }; // affichage immédiat, avant même la confirmation du serveur
+    render();
+    try {
+      await setDoc(doc(db, "meta", "emojis"), { map: { [name]: emoji } }, { merge: true });
+    } catch (e) {
+      console.error(e);
+      showError("Impossible d'enregistrer l'émoji (réseau).");
+    }
+  }
+
+  async function changeEmoji(name) {
+    if (!PARTICIPANTS_LIST.includes(name)) return;
+    const choice = await pickEmoji(name);
+    if (choice === undefined) return;
+    await saveEmoji(name, choice);
+  }
 
   // Boîte de confirmation (remplace window.confirm : cohérente avec le design et fiable dans une PWA).
   // Sans `options` : retourne true (confirmé) ou false (annulé).
@@ -589,6 +695,9 @@
       : `<option value="">Tout le monde est inscrit</option>`;
     if (remaining.includes(prevSelection)) nameInput.value = prevSelection;
 
+    emojiBtn.textContent = emojiFor(nameInput.value) || "🙂";
+    emojiBtn.disabled = !nameInput.value;
+
     const canRegister = regOpen && remaining.length > 0;
     nameInput.disabled = !canRegister;
     bagInput.disabled = !canRegister;
@@ -610,7 +719,7 @@
     } else {
       listWrap.innerHTML = dayData.participants.map((p) => `
         <div class="chip-row">
-          <div class="avatar" style="background:${colorFor(p.name)}">${initialsFor(p.name)}</div>
+          <div class="avatar${avatarClass(p.name)}" data-emoji-for="${escapeHtml(p.name)}" role="button" title="Changer l'émoji" style="${avatarStyle(p.name)}">${avatarInner(p.name)}</div>
           <span class="name">${escapeHtml(p.name)}</span>
           <span class="bag-badge">Sac n°${escapeHtml(p.bag)}</span>
         </div>
@@ -629,7 +738,7 @@
       revealWrap.innerHTML = `
         <div class="winner-card">
           <p class="tag">Désigné·e</p>
-          <div class="winner-avatar" style="background:${colorFor(dayData.winner.name)}">${initialsFor(dayData.winner.name)}</div>
+          <div class="winner-avatar${avatarClass(dayData.winner.name)}" style="${avatarStyle(dayData.winner.name)}">${avatarInner(dayData.winner.name)}</div>
           <p class="winner-name">${escapeHtml(dayData.winner.name)}</p>
           ${dayData.winner.bag ? `<span class="bag-line">${escapeHtml(bagText(dayData.winner.bag))}</span>` : ""}
           ${dayData.winner.reassignedFrom ? `<p class="reassign-note">Attribué à la place de ${escapeHtml(dayData.winner.reassignedFrom)}</p>` : ""}
@@ -647,7 +756,7 @@
       historySection.style.display = "block";
       historyList.innerHTML = history.map(h => `
         <div class="history-row">
-          <div class="avatar h-avatar" style="background:${colorFor(h.name)}">${initialsFor(h.name)}</div>
+          <div class="avatar h-avatar${avatarClass(h.name)}" style="${avatarStyle(h.name)}">${avatarInner(h.name)}</div>
           <span class="h-name">${escapeHtml(h.name)}${h.reassignedFrom ? ` <span class="h-note">(à la place de ${escapeHtml(h.reassignedFrom)})</span>` : ""}</span>
           <span class="h-bag">${escapeHtml(bagText(h.bag))}</span>
           <span class="h-date">${escapeHtml(h.date)}</span>
@@ -823,7 +932,7 @@
       const p = participants[Math.floor(Math.random() * participants.length)];
       revealWrap.innerHTML = `
         <div class="rolling-card">
-          <div class="avatar" style="background:${colorFor(p.name)}">${initialsFor(p.name)}</div>
+          <div class="avatar${avatarClass(p.name)}" style="${avatarStyle(p.name)}">${avatarInner(p.name)}</div>
           <div>
             <p class="rolling-text">${escapeHtml(p.name)}</p>
             <p class="rolling-sub">Sac n°${escapeHtml(p.bag)}</p>
@@ -880,6 +989,17 @@
     await ensureDayDoc();
     subscribeDay();
     subscribeHistory();
+    onSnapshot(doc(db, "meta", "emojis"), (snap) => {
+      emojis = snap.exists() ? (snap.data().map || {}) : {};
+      render();
+    });
+
+    emojiBtn.addEventListener("click", () => { if (nameInput.value) changeEmoji(nameInput.value); });
+    nameInput.addEventListener("change", render);
+    listWrap.addEventListener("click", (e) => {
+      const a = e.target.closest("[data-emoji-for]");
+      if (a) changeEmoji(a.dataset.emojiFor);
+    });
 
     addBtn.addEventListener("click", addParticipant);
     nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") bagInput.focus(); });
