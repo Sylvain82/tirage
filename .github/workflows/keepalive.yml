@@ -1,0 +1,27 @@
+name: Keepalive
+
+# GitHub désactive les workflows planifiés d'un dépôt sans aucune activité pendant 60 jours.
+# Ce workflow fait un petit commit le 1er de chaque mois : les notifications ne s'arrêtent jamais
+# silencieusement. (Il s'entretient lui-même grâce à ce commit.)
+on:
+  schedule:
+    - cron: "17 3 1 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Commit d'activité
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          date -u +"%Y-%m-%d" > .keepalive
+          git add .keepalive
+          git commit -m "chore: keepalive $(date -u +%Y-%m-%d)" || echo "Rien à committer aujourd'hui."
+          git push
