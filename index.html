@@ -151,6 +151,40 @@
     background: var(--chip); padding: 9px 12px; border-radius: 12px;
   }
 
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(10,14,12,0.55); display: none; align-items: center;
+    justify-content: center; padding: 20px; z-index: 50; backdrop-filter: blur(2px);
+  }
+  .modal {
+    background: var(--surface); color: var(--ink); width: 100%; max-width: 360px; border-radius: 22px;
+    padding: 22px 22px 18px; border: 1px solid var(--line); box-shadow: 0 30px 70px -20px var(--shadow);
+    animation: popIn 0.25s cubic-bezier(.22,1.1,.4,1) forwards;
+  }
+  .modal h2 { font-family: 'Space Grotesk', sans-serif; font-size: 19px; margin: 0 0 8px; }
+  .modal p { font-size: 14px; color: var(--muted); margin: 0 0 18px; line-height: 1.45; font-weight: 500; }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-btn {
+    flex: 1; padding: 13px; border-radius: 14px; border: none; cursor: pointer; font-size: 15px; font-weight: 700;
+    font-family: 'Manrope', sans-serif; background: var(--accent); color: #fff;
+  }
+  .modal-btn.ghost { background: var(--chip); color: var(--ink); }
+  .modal-btn.danger { background: var(--danger); }
+  .modal-select {
+    display: none; width: 100%; padding: 13px 14px; border-radius: 14px; font-size: 15px; background: var(--chip);
+    color: var(--ink); border: 1.5px solid transparent; font-family: 'Manrope', sans-serif; font-weight: 600;
+    outline: none; margin: 0 0 18px; appearance: none;
+  }
+  .modal-select:focus { border-color: var(--accent); }
+
+  .link-btn {
+    display: block; margin: 14px auto 0; background: none; border: none; cursor: pointer; padding: 4px 6px;
+    color: var(--muted); font-size: 12.5px; font-weight: 600; font-family: 'Manrope', sans-serif;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .link-btn:hover { color: var(--ink); }
+  .winner-card .reassign-note { font-size: 12px; color: var(--muted); font-weight: 600; margin: 10px 0 0; }
+  .history-row .h-note { color: var(--muted); font-weight: 600; font-size: 11.5px; }
+
   .token-box {
     background: var(--accent-soft); border: 1px solid var(--success-border); border-radius: 12px; padding: 10px 12px;
   }
@@ -300,6 +334,18 @@
   </div>
   <p class="footnote">Synchronisé en temps réel entre tous les appareils — ouvre cette page sur n'importe quel PC ou mobile connecté à internet.</p>
 
+<div class="modal-backdrop" id="confirmModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h2 id="confirmTitle"></h2>
+      <p id="confirmText"></p>
+      <select id="confirmSelect" class="modal-select"></select>
+      <div class="modal-actions">
+        <button class="modal-btn ghost" id="confirmCancel">Annuler</button>
+        <button class="modal-btn" id="confirmOk">Confirmer</button>
+      </div>
+    </div>
+  </div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
@@ -349,6 +395,7 @@
     const i = PARTICIPANTS_LIST.indexOf(name);
     return AVATAR_COLORS[i >= 0 ? i % AVATAR_COLORS.length : 0];
   }
+  function bagText(bag) { return bag ? `Sac n°${bag}` : ""; }
   function initialsFor(name) { return (name || "?").slice(0, 2).toUpperCase(); }
 
   const REG_OPEN_MIN = 7 * 60;        // 07:00
@@ -360,6 +407,8 @@
     return `${y}-${m}-${day}`;
   }
   function minutesNow(d = new Date()) { return d.getHours() * 60 + d.getMinutes(); }
+  // Tirage uniquement du lundi au vendredi (0 = dimanche, 6 = samedi)
+  function isWeekday(d = new Date()) { const day = d.getDay(); return day >= 1 && day <= 5; }
   function escapeHtml(str) { const div = document.createElement("div"); div.textContent = str; return div.innerHTML; }
 
   let app, db;
@@ -380,6 +429,48 @@
   const themeToggle = el("themeToggle"), themeIcon = el("themeIcon");
   const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
+  const confirmModal = el("confirmModal"), confirmTitle = el("confirmTitle"), confirmText = el("confirmText");
+  const confirmOk = el("confirmOk"), confirmCancel = el("confirmCancel"), confirmSelect = el("confirmSelect");
+
+  // Boîte de confirmation (remplace window.confirm : cohérente avec le design et fiable dans une PWA).
+  // Sans `options` : retourne true (confirmé) ou false (annulé).
+  // Avec `options` [{value, label}] : affiche une liste déroulante et retourne la valeur choisie, ou null si annulé.
+  function confirmDialog({ title, message, confirmLabel = "Confirmer", danger = false, options = null }) {
+    return new Promise((resolve) => {
+      const hasOptions = Array.isArray(options) && options.length > 0;
+      confirmTitle.textContent = title;
+      confirmText.textContent = message;
+      confirmOk.textContent = confirmLabel;
+      confirmOk.classList.toggle("danger", danger);
+      if (hasOptions) {
+        confirmSelect.innerHTML = options.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join("");
+        confirmSelect.style.display = "block";
+      } else {
+        confirmSelect.style.display = "none";
+      }
+      confirmModal.style.display = "flex";
+      (hasOptions ? confirmSelect : confirmCancel).focus();
+
+      const finish = (result) => {
+        confirmModal.style.display = "none";
+        confirmOk.removeEventListener("click", onOk);
+        confirmCancel.removeEventListener("click", onCancel);
+        confirmModal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKey);
+        resolve(result);
+      };
+      const cancelValue = hasOptions ? null : false;
+      const onOk = () => finish(hasOptions ? confirmSelect.value : true);
+      const onCancel = () => finish(cancelValue);
+      const onBackdrop = (e) => { if (e.target === confirmModal) finish(cancelValue); };
+      const onKey = (e) => { if (e.key === "Escape") finish(cancelValue); };
+
+      confirmOk.addEventListener("click", onOk);
+      confirmCancel.addEventListener("click", onCancel);
+      confirmModal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKey);
+    });
+  }
 
   function updateNotifIcon() {
     if (!("Notification" in window)) { notifIcon.textContent = "🔕"; return; }
@@ -486,7 +577,8 @@
 
   function render() {
     const mins = minutesNow();
-    const regOpen = mins >= REG_OPEN_MIN && mins <= REG_CLOSE_MIN;
+    const weekend = !isWeekday();
+    const regOpen = !weekend && mins >= REG_OPEN_MIN && mins <= REG_CLOSE_MIN;
     const beforeReg = mins < REG_OPEN_MIN;
 
     const alreadyIn = new Set(dayData.participants.map(p => p.name));
@@ -503,7 +595,8 @@
     addBtn.disabled = !canRegister;
 
     let statusText, statusColor, statusBg;
-    if (dayData.winner) { statusText = "Tirage terminé"; statusColor = "var(--success)"; statusBg = "var(--success-soft)"; }
+    if (weekend) { statusText = "Pas de tirage le week-end — reprise lundi"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
+    else if (dayData.winner) { statusText = "Tirage terminé"; statusColor = "var(--success)"; statusBg = "var(--success-soft)"; }
     else if (regOpen) { statusText = "Inscriptions ouvertes jusqu'à 11h55"; statusColor = "var(--accent-ink)"; statusBg = "var(--accent-soft)"; }
     else if (beforeReg) { statusText = "Inscriptions à partir de 7h00"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
     else { statusText = "Inscriptions fermées — tirage à 11h56"; statusColor = "var(--danger)"; statusBg = "var(--danger-soft)"; }
@@ -524,10 +617,10 @@
       `).join("");
     }
 
-    drawBtn.style.display = dayData.winner ? "none" : "flex";
+    drawBtn.style.display = (dayData.winner || weekend) ? "none" : "flex";
     drawBtn.disabled = rolling || dayData.participants.length === 0;
     drawBtnLabel.textContent = rolling ? "Tirage en cours…" : (mins < DRAW_MIN ? "Lancer le tirage maintenant" : "Lancer le tirage");
-    autoHintEl.textContent = (!dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
+    autoHintEl.textContent = (!weekend && !dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
 
     if (rolling) {
       revealWrap.style.display = "block";
@@ -538,8 +631,10 @@
           <p class="tag">Désigné·e</p>
           <div class="winner-avatar" style="background:${colorFor(dayData.winner.name)}">${initialsFor(dayData.winner.name)}</div>
           <p class="winner-name">${escapeHtml(dayData.winner.name)}</p>
-          <span class="bag-line">Sac n°${escapeHtml(dayData.winner.bag)}</span>
+          ${dayData.winner.bag ? `<span class="bag-line">${escapeHtml(bagText(dayData.winner.bag))}</span>` : ""}
+          ${dayData.winner.reassignedFrom ? `<p class="reassign-note">Attribué à la place de ${escapeHtml(dayData.winner.reassignedFrom)}</p>` : ""}
         </div>
+        ${isWeekday() ? `<button class="link-btn" id="reassignBtn">Quelqu'un d'autre est allé chercher les sacs ?</button>` : ""}
       `;
     } else {
       revealWrap.style.display = "none";
@@ -553,8 +648,8 @@
       historyList.innerHTML = history.map(h => `
         <div class="history-row">
           <div class="avatar h-avatar" style="background:${colorFor(h.name)}">${initialsFor(h.name)}</div>
-          <span class="h-name">${escapeHtml(h.name)}</span>
-          <span class="h-bag">Sac n°${escapeHtml(h.bag)}</span>
+          <span class="h-name">${escapeHtml(h.name)}${h.reassignedFrom ? ` <span class="h-note">(à la place de ${escapeHtml(h.reassignedFrom)})</span>` : ""}</span>
+          <span class="h-bag">${escapeHtml(bagText(h.bag))}</span>
           <span class="h-date">${escapeHtml(h.date)}</span>
         </div>
       `).join("");
@@ -599,6 +694,7 @@
     const bag = bagInput.value.trim();
     if (!name || !PARTICIPANTS_LIST.includes(name)) { showError("Choisis un nom dans la liste."); return; }
     if (!bag) { showError("Merci d'indiquer un numéro de sac."); return; }
+    if (!isWeekday()) { showError("Pas de tirage le week-end : les inscriptions reprennent lundi."); return; }
     const mins = minutesNow();
     if (mins < REG_OPEN_MIN || mins > REG_CLOSE_MIN) { showError("Les inscriptions sont fermées (ouvertes de 7h00 à 11h55)."); return; }
     try {
@@ -618,45 +714,102 @@
   }
 
   async function resetDay() {
+    const ok = await confirmDialog({
+      title: "Réinitialiser le tirage du jour ?",
+      message: "Toutes les inscriptions et le gagnant du jour seront effacés. Cette action est irréversible.",
+      confirmLabel: "Réinitialiser",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await setDoc(dayRef(), { participants: [], winner: null, drawnAt: null, date: currentDayId });
     } catch (e) { console.error(e); }
   }
 
-  async function appendHistory(entry) {
-    try {
-      const snap = await getDoc(historyRef());
-      const current = snap.exists() ? (snap.data().entries || []) : [];
-      const next = [entry, ...current].slice(0, 30);
-      await setDoc(historyRef(), { entries: next });
-    } catch (e) { console.error(e); }
-  }
-
   async function doDraw() {
+    if (!isWeekday()) return null;
     let winnerResult = null;
     try {
       winnerResult = await runTransaction(db, async (tx) => {
+        // Toutes les lectures d'abord (exigence Firestore), puis les écritures.
         const snap = await tx.get(dayRef());
+        const histSnap = await tx.get(historyRef());
         const data = snap.data();
         if (!data || data.winner) return null;
         const participants = data.participants || [];
         if (participants.length === 0) return null;
-        const lastWinnerName = history[0]?.name;
+
+        // Le dernier gagnant est lu dans la transaction elle-même (et non depuis
+        // une copie locale potentiellement pas encore chargée) : le gagnant du
+        // vendredi est donc toujours écarté le lundi, puisqu'il n'y a pas de
+        // tirage le week-end.
+        const entries = histSnap.exists() ? (histSnap.data().entries || []) : [];
+        const lastWinnerName = entries[0]?.name;
         let pool = participants;
         if (excludeLast && lastWinnerName && participants.length > 1) {
           const filtered = participants.filter(p => p.name !== lastWinnerName);
           if (filtered.length > 0) pool = filtered;
         }
         const chosen = pool[Math.floor(Math.random() * pool.length)];
+        const entry = { name: chosen.name, bag: chosen.bag, date: new Date().toLocaleDateString("fr-FR") };
+
         tx.set(dayRef(), { ...data, winner: chosen, drawnAt: serverTimestamp() });
+        tx.set(historyRef(), { entries: [entry, ...entries].slice(0, 30) });
         return chosen;
       });
     } catch (e) { console.error(e); }
-    if (winnerResult) {
-      await appendHistory({ name: winnerResult.name, bag: winnerResult.bag, date: new Date().toLocaleDateString("fr-FR") });
-    }
     return winnerResult;
   }
+
+  // Quelqu'un d'autre que la personne tirée est allé chercher les sacs : on lui attribue le tirage.
+  // Le gagnant du jour ET la dernière ligne de l'historique sont remplacés dans la même transaction,
+  // donc c'est bien cette personne qui sera écartée demain, et la personne initialement tirée
+  // redevient éligible.
+  async function reassignWinner(newName) {
+    if (!isWeekday() || !PARTICIPANTS_LIST.includes(newName)) return;
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const histSnap = await tx.get(historyRef());
+        const data = snap.data();
+        if (!data || !data.winner || data.winner.name === newName) return;
+
+        const registered = (data.participants || []).find(p => p.name === newName);
+        const originalName = data.winner.reassignedFrom || data.winner.name;
+        const newWinner = { name: newName, bag: registered ? registered.bag : "", reassignedFrom: originalName };
+
+        const today = new Date().toLocaleDateString("fr-FR");
+        const entry = { name: newName, bag: newWinner.bag, date: today, reassignedFrom: originalName };
+        const entries = histSnap.exists() ? (histSnap.data().entries || []) : [];
+        const lastIsToday = entries[0] && entries[0].name === data.winner.name && entries[0].date === today;
+        const next = lastIsToday ? [entry, ...entries.slice(1)] : [entry, ...entries];
+
+        tx.set(dayRef(), { ...data, winner: newWinner });
+        tx.set(historyRef(), { entries: next.slice(0, 30) });
+      });
+      showError("");
+    } catch (e) {
+      console.error(e);
+      showError("Erreur réseau, réessaie.");
+    }
+  }
+
+  async function reassignFlow() {
+    if (!dayData.winner) return;
+    const current = dayData.winner.name;
+    const chosen = await confirmDialog({
+      title: "Qui est allé chercher les sacs ?",
+      message: `Le tirage sera attribué à cette personne, qui ne sera donc pas retirée demain. ${current} redeviendra éligible.`,
+      confirmLabel: "Attribuer",
+      options: PARTICIPANTS_LIST.filter(n => n !== current).map(n => ({ value: n, label: n })),
+    });
+    if (!chosen) return;
+    await reassignWinner(chosen);
+  }
+
+  revealWrap.addEventListener("click", (e) => {
+    if (e.target.closest("#reassignBtn")) reassignFlow();
+  });
 
   function animateThenDraw() {
     if (rolling) return;
@@ -687,7 +840,16 @@
   }
 
   async function manualDraw() {
+    if (!isWeekday()) { showError("Pas de tirage le week-end."); return; }
     if (dayData.winner || dayData.participants.length === 0) return;
+    const n = dayData.participants.length;
+    const ok = await confirmDialog({
+      title: "Lancer le tirage maintenant ?",
+      message: `${n} personne${n > 1 ? "s" : ""} inscrite${n > 1 ? "s" : ""}. Le tirage est définitif pour aujourd'hui.`,
+      confirmLabel: "Lancer le tirage",
+    });
+    if (!ok) return;
+    if (dayData.winner) return; // quelqu'un d'autre a pu tirer pendant la confirmation
     showError("");
     animateThenDraw();
   }
@@ -695,6 +857,7 @@
   let autoDrawInFlight = false;
   async function checkAutoDraw() {
     if (autoDrawInFlight) return;
+    if (!isWeekday()) return;
     if (dayData.winner) return;
     if (minutesNow() < DRAW_MIN) return;
     if (!dayData.participants || dayData.participants.length === 0) return;
