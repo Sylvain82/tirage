@@ -2,11 +2,18 @@ name: Notify winner
 
 on:
   schedule:
-    # Du lundi au vendredi uniquement, toutes les 5 minutes, de 4h00 à 11h59 UTC — couvre 6h/7h à 13h/14h
-    # heure de Paris selon l'heure d'été ou d'hiver, avec de la marge
-    # autour du créneau d'inscription (7h00-11h55) et du tirage (11h56).
+    # Du lundi au vendredi, toutes les 5 minutes de 4h00 à 11h59 UTC : couvre 6h/7h à 13h/14h heure de Paris
+    # (été ou hiver), avec de la marge autour des inscriptions (7h00-11h55) et du tirage (11h56).
     - cron: "*/5 4-11 * * 1-5"
-  workflow_dispatch: {} # permet de le lancer manuellement depuis l'onglet Actions, pour tester
+    # Un passage supplémentaire à 11h57 pile heure de Paris : 9h57 UTC l'été, 10h57 UTC l'hiver.
+    # (Le passage de l'autre saison tombe hors créneau et ne fait rien.)
+    - cron: "57 9-10 * * 1-5"
+  workflow_dispatch: {} # lancement manuel depuis l'onglet Actions, pour tester
+
+# Un seul passage à la fois : évite deux exécutions simultanées autour de 11h57.
+concurrency:
+  group: notify-winner
+  cancel-in-progress: false
 
 jobs:
   notify:
@@ -22,7 +29,7 @@ jobs:
         working-directory: scripts
         run: npm install
 
-      - name: Envoyer la notification si un gagnant vient d'être désigné
+      - name: Tirage de secours (si besoin) puis notification
         working-directory: scripts
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
