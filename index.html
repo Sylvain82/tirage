@@ -77,6 +77,7 @@
   .mono { font-family: 'JetBrains Mono', monospace; }
 
   .card {
+    position: relative;
     background: var(--surface); width: 100%; max-width: 460px; border-radius: 28px;
     box-shadow: 0 24px 60px -28px var(--shadow), 0 2px 6px rgba(20,23,26,0.04);
     overflow: hidden; border: 1px solid var(--line); transition: background 0.2s ease, border-color 0.2s ease;
@@ -179,7 +180,6 @@
   /* Avatars avec émoji : fond teinté (couleur de la personne, très léger) au lieu du fond plein + initiales */
   .avatar.has-emoji { font-size: 19px; }
   .winner-avatar.has-emoji { font-size: 32px; }
-  .rolling-card .avatar.has-emoji { font-size: 24px; }
   .history-row .h-avatar.has-emoji { font-size: 13px; }
   .chip-row .avatar[data-emoji-for] { cursor: pointer; transition: transform 0.12s ease; }
   .chip-row .avatar[data-emoji-for]:hover { transform: scale(1.08); }
@@ -200,16 +200,6 @@
   }
   .emoji-opt:hover { background: var(--accent-soft); }
   .emoji-opt.selected { outline: 2px solid var(--accent); }
-  .emoji-custom-row { display: flex; gap: 8px; margin: 0 0 8px; }
-  .emoji-custom-row input {
-    flex: 1; min-width: 0; padding: 12px 14px; border-radius: 14px; background: var(--chip); color: var(--ink);
-    border: 1.5px solid transparent; outline: none; font-size: 16px; /* 16px : évite le zoom automatique sur iPhone */
-    font-family: 'Manrope', sans-serif; font-weight: 600;
-  }
-  .emoji-custom-row input:focus { border-color: var(--accent); background: var(--surface); }
-  .emoji-custom-ok { flex: none; padding: 0 20px; }
-  .emoji-error { font-size: 12.5px; color: var(--danger); font-weight: 600; margin: 0 0 12px; line-height: 1.4; }
-  .emoji-custom-row + .emoji-error + .modal-actions, .emoji-custom-row + .modal-actions { margin-top: 12px; }
 
   .link-btn {
     display: block; margin: 14px auto 0; background: none; border: none; cursor: pointer; padding: 4px 6px;
@@ -241,13 +231,32 @@
   .hint { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); margin: 0; text-align: center; }
 
   .reveal { padding: 0 28px 26px; }
-  .rolling-card {
-    display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; background: var(--chip);
+  /* Panneau d'aéroport (révélation du tirage) */
+  .flap-wrap { padding: 4px 0 2px; text-align: center; }
+  .flap-tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; color: var(--muted); margin: 0 0 12px; transition: color 0.3s ease;
   }
-  .rolling-card .avatar { width: 46px; height: 46px; font-size: 15px; animation: pulse 0.5s ease-in-out infinite alternate; }
-  @keyframes pulse { from { opacity: 0.55; } to { opacity: 1; } }
-  .rolling-card .rolling-text { font-size: 17px; font-weight: 700; }
-  .rolling-card .rolling-sub { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .flap-tag.done { color: var(--success); }
+  .flap-row { display: grid; grid-template-columns: repeat(8, minmax(0, 38px)); gap: 5px; justify-content: center; }
+  .sf {
+    position: relative; height: 54px; border-radius: 8px; background: var(--chip); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace;
+    font-size: 26px; font-weight: 600; color: var(--ink);
+    transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+  }
+  .sf::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line); }
+  .sf.settled {
+    background: var(--success-soft); border-color: var(--success-border); color: var(--success);
+    animation: flapSettle 0.28s cubic-bezier(.22,1.1,.4,1);
+  }
+  @keyframes flapSettle { 0% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+  .confetti-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 5; }
+  .confetti {
+    position: absolute; border-radius: 2px; will-change: transform, opacity;
+    transition: transform 2.2s cubic-bezier(.1,.7,.3,1), opacity 2.2s ease-in;
+  }
 
   @keyframes popIn { 0% { opacity: 0; transform: scale(0.7) translateY(6px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
   .winner-card {
@@ -367,6 +376,7 @@
       <p class="history-tag">Historique</p>
       <div class="history-list" id="historyList"></div>
     </div>
+    <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
   </div>
   <p class="footnote">Synchronisé en temps réel entre tous les appareils — ouvre cette page sur n'importe quel PC ou mobile connecté à internet.</p>
 
@@ -386,11 +396,6 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
       <h2 id="emojiTitle"></h2>
       <div class="emoji-grid" id="emojiGrid"></div>
-      <div class="emoji-custom-row">
-        <input type="text" id="emojiCustom" placeholder="Ou tape ton émoji…" maxlength="30" autocomplete="off" aria-label="Taper un émoji">
-        <button type="button" class="modal-btn emoji-custom-ok" id="emojiCustomOk">OK</button>
-      </div>
-      <p class="emoji-error" id="emojiError" style="display:none;">Ce n'est pas un émoji — utilise le clavier émoji de ton appareil.</p>
       <div class="modal-actions">
         <button class="modal-btn ghost" id="emojiNone">Initiales</button>
         <button class="modal-btn ghost" id="emojiCancel">Annuler</button>
@@ -477,8 +482,8 @@
   let emojis = {}; // { "Prénom": "🦊" } — partagé entre tous les appareils (Firestore meta/emojis)
   const excludeLast = true; // verrouillé : le gagnant précédent est toujours écarté du tirage suivant
   let unsubscribeDay = null;
-  let rolling = false;
-  let rollInterval = null;
+  let rolling = false;   // ce tirage a été lancé depuis cet appareil (en attente du résultat)
+  let revealing = false; // l'animation de révélation est en cours à l'écran
 
   const el = (id) => document.getElementById(id);
   const nameInput = el("nameInput"), bagInput = el("bagInput"), addBtn = el("addBtn"), errorMsg = el("errorMsg");
@@ -491,7 +496,6 @@
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
   const emojiBtn = el("emojiBtn"), emojiModal = el("emojiModal"), emojiTitle = el("emojiTitle"), emojiGrid = el("emojiGrid");
   const emojiNone = el("emojiNone"), emojiCancel = el("emojiCancel");
-  const emojiCustom = el("emojiCustom"), emojiCustomOk = el("emojiCustomOk"), emojiError = el("emojiError");
   const confirmModal = el("confirmModal"), confirmTitle = el("confirmTitle"), confirmText = el("confirmText");
   const confirmOk = el("confirmOk"), confirmCancel = el("confirmCancel"), confirmSelect = el("confirmSelect");
 
@@ -502,19 +506,7 @@
     "🌈","🚀","👑","🎯","🧠","💪","😎","🤓","🥳","😴","🤠","🥷","🧙","🦸","🤖","👻",
   ];
 
-  // Extrait le premier émoji d'un texte saisi ou collé (gère drapeaux, teintes de peau, séquences ZWJ…).
-  // Retourne "" si le texte ne contient aucun émoji.
-  function firstEmoji(text) {
-    const t = (text || "").trim();
-    if (!t) return "";
-    const graphemes = (typeof Intl !== "undefined" && Intl.Segmenter)
-      ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), (s) => s.segment)
-      : Array.from(t);
-    return graphemes.find((g) => /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(g)) || "";
-  }
-
-  // Sélecteur d'émoji : retourne l'émoji choisi (grille ou saisie libre), "" pour revenir aux initiales,
-  // ou undefined si annulé.
+  // Sélecteur d'émoji : retourne l'émoji choisi, "" pour revenir aux initiales, ou undefined si annulé.
   function pickEmoji(name) {
     return new Promise((resolve) => {
       const current = emojiFor(name);
@@ -522,9 +514,6 @@
       emojiGrid.innerHTML = EMOJI_CHOICES.map(e =>
         `<button type="button" class="emoji-opt${e === current ? " selected" : ""}" data-e="${e}">${e}</button>`
       ).join("");
-      // si l'émoji actuel vient de la saisie libre, on l'affiche dans le champ
-      emojiCustom.value = current && !EMOJI_CHOICES.includes(current) ? current : "";
-      emojiError.style.display = "none";
       emojiModal.style.display = "flex";
 
       const finish = (value) => {
@@ -532,9 +521,6 @@
         emojiGrid.removeEventListener("click", onGrid);
         emojiNone.removeEventListener("click", onNone);
         emojiCancel.removeEventListener("click", onCancel);
-        emojiCustomOk.removeEventListener("click", onCustom);
-        emojiCustom.removeEventListener("keydown", onCustomKey);
-        emojiCustom.removeEventListener("input", onCustomInput);
         emojiModal.removeEventListener("click", onBackdrop);
         document.removeEventListener("keydown", onKey);
         resolve(value);
@@ -542,22 +528,12 @@
       const onGrid = (ev) => { const b = ev.target.closest(".emoji-opt"); if (b) finish(b.dataset.e); };
       const onNone = () => finish("");
       const onCancel = () => finish(undefined);
-      const onCustom = () => {
-        const e = firstEmoji(emojiCustom.value);
-        if (!e) { emojiError.style.display = "block"; return; }
-        finish(e);
-      };
-      const onCustomKey = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); onCustom(); } };
-      const onCustomInput = () => { emojiError.style.display = "none"; };
       const onBackdrop = (ev) => { if (ev.target === emojiModal) finish(undefined); };
       const onKey = (ev) => { if (ev.key === "Escape") finish(undefined); };
 
       emojiGrid.addEventListener("click", onGrid);
       emojiNone.addEventListener("click", onNone);
       emojiCancel.addEventListener("click", onCancel);
-      emojiCustomOk.addEventListener("click", onCustom);
-      emojiCustom.addEventListener("keydown", onCustomKey);
-      emojiCustom.addEventListener("input", onCustomInput);
       emojiModal.addEventListener("click", onBackdrop);
       document.addEventListener("keydown", onKey);
     });
@@ -775,7 +751,7 @@
     drawBtnLabel.textContent = rolling ? "Tirage en cours…" : (mins < DRAW_MIN ? "Lancer le tirage maintenant" : "Lancer le tirage");
     autoHintEl.textContent = (!weekend && !dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
 
-    if (rolling) {
+    if (rolling || revealing) {
       revealWrap.style.display = "block";
     } else if (dayData.winner) {
       revealWrap.style.display = "block";
@@ -822,8 +798,11 @@
     let prevWinner = null;
     unsubscribeDay = onSnapshot(dayRef(), (snap) => {
       const newData = snap.exists() ? snap.data() : { participants: [], winner: null, drawnAt: null };
-      if (!firstSnapshot && !prevWinner && newData.winner) {
-        notifyWinner(newData.winner);
+      if (!firstSnapshot && !prevWinner && newData.winner && !rolling && !revealing) {
+        // Un gagnant vient d'être désigné (tirage automatique ou lancé depuis un autre appareil) :
+        // onglet visible -> on joue la révélation à l'écran ; onglet en arrière-plan -> notification.
+        if (document.visibilityState === "visible") playReveal(Promise.resolve(newData.winner));
+        else notifyWinner(newData.winner);
       }
       prevWinner = newData.winner;
       firstSnapshot = false;
@@ -964,32 +943,99 @@
     if (e.target.closest("#reassignBtn")) reassignFlow();
   });
 
+  // ---- Révélation du gagnant : panneau d'aéroport, puis confettis ----
+  const FLAP_CELLS = 8;
+  const FLAP_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let revealTimers = [];
+  function revLater(fn, ms) { revealTimers.push(setTimeout(fn, ms)); }
+  function stopReveal() { revealTimers.forEach(clearTimeout); revealTimers = []; revealing = false; }
+
+  function confettiBurst() {
+    const layer = el("confettiLayer");
+    if (!layer) return;
+    const cardRect = layer.getBoundingClientRect();
+    const r = revealWrap.getBoundingClientRect();
+    const ox = cardRect.width / 2;
+    const oy = (r.top - cardRect.top) + r.height / 2;
+    const colors = [...AVATAR_COLORS, "#4f9468"];
+    for (let i = 0; i < 70; i++) {
+      const piece = document.createElement("div");
+      const s = 6 + Math.random() * 6;
+      piece.className = "confetti";
+      piece.style.cssText = `left:${ox}px;top:${oy}px;width:${s}px;height:${s * 0.6}px;background:${colors[i % colors.length]}`;
+      layer.appendChild(piece);
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 90 + Math.random() * 190;
+      const dx = Math.cos(ang) * dist;
+      const dy = Math.sin(ang) * dist * 0.7 + 120; // léger effet de chute
+      const rot = Math.random() * 900 - 450;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        piece.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
+        piece.style.opacity = "0";
+      }));
+      setTimeout(() => piece.remove(), 2600);
+    }
+  }
+
+  // winnerPromise : promesse du gagnant (objet {name, bag}) ou de null si aucun tirage n'a eu lieu.
+  // Le panneau tourne dès le départ ; les lettres se figent une à une (de gauche à droite)
+  // dès que le gagnant est connu, puis les confettis partent et la carte du gagnant prend le relais.
+  function playReveal(winnerPromise) {
+    if (revealing) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      winnerPromise.then(() => { rolling = false; render(); });
+      return;
+    }
+    revealing = true;
+    revealWrap.style.display = "block";
+    revealWrap.innerHTML = `<div class="flap-wrap"><p class="flap-tag" id="flapTag">Tirage en cours…</p><div class="flap-row" aria-hidden="true">${
+      Array.from({ length: FLAP_CELLS }, (_, j) => `<div class="sf" id="sf-${j}"></div>`).join("")
+    }</div></div>`;
+    const cells = Array.from({ length: FLAP_CELLS }, (_, j) => el("sf-" + j));
+    const start = Date.now();
+    let target = null;
+    let settleAt = Infinity;
+
+    winnerPromise.then((w) => {
+      if (!revealing) return;
+      if (!w) { stopReveal(); rolling = false; render(); return; } // quelqu'un d'autre a tiré, ou erreur
+      target = w.name.toUpperCase().padEnd(FLAP_CELLS, " ").slice(0, FLAP_CELLS);
+      settleAt = Math.max(Date.now(), start + 1100);
+    });
+
+    const tick = () => {
+      if (!revealing) return;
+      const now = Date.now();
+      let all = true;
+      for (let j = 0; j < FLAP_CELLS; j++) {
+        const cell = cells[j];
+        if (target && now >= settleAt + j * 240) {
+          if (!cell.classList.contains("settled")) {
+            cell.textContent = target[j] === " " ? "" : target[j];
+            cell.classList.add("settled");
+          }
+        } else {
+          all = false;
+          cell.textContent = FLAP_LETTERS[Math.floor(Math.random() * 26)];
+        }
+      }
+      if (all) {
+        const tag = el("flapTag");
+        if (tag) { tag.textContent = "Désigné·e"; tag.classList.add("done"); }
+        confettiBurst();
+        revLater(() => { stopReveal(); rolling = false; render(); }, 1700);
+      } else {
+        revLater(tick, 70);
+      }
+    };
+    tick();
+  }
+
   function animateThenDraw() {
-    if (rolling) return;
+    if (rolling || revealing) return;
     rolling = true;
     render();
-    const participants = dayData.participants;
-    let ticks = 0;
-    const maxTicks = 18;
-    rollInterval = setInterval(async () => {
-      ticks += 1;
-      const p = participants[Math.floor(Math.random() * participants.length)];
-      revealWrap.innerHTML = `
-        <div class="rolling-card">
-          <div class="avatar${avatarClass(p.name)}" style="${avatarStyle(p.name)}">${avatarInner(p.name)}</div>
-          <div>
-            <p class="rolling-text">${escapeHtml(p.name)}</p>
-            <p class="rolling-sub">Sac n°${escapeHtml(p.bag)}</p>
-          </div>
-        </div>
-      `;
-      if (ticks >= maxTicks) {
-        clearInterval(rollInterval);
-        rolling = false;
-        await doDraw();
-        render();
-      }
-    }, 90);
+    playReveal(doDraw());
   }
 
   async function manualDraw() {
