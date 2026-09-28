@@ -403,6 +403,8 @@
     </div>
   </div>
 
+<script src="days.js"></script>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
@@ -466,13 +468,63 @@
   const REG_CLOSE_MIN = 11 * 60 + 55; // 11:55
   const DRAW_MIN = 11 * 60 + 56;      // 11:56
 
-  function todayStr(d = new Date()) {
-    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+  // ---- Heure de référence : serveur Firebase + fuseau Europe/Paris ----
+  // On ne se fie pas à l'horloge de l'appareil (réglage faux, mauvais fuseau…) : l'écart avec l'heure du
+  // serveur est mesuré au démarrage (puis toutes les 30 min), et les heures/jours sont calculés à Paris.
+  const { parisParts, dateKey, frDate, dayOffReason, nextDrawDayLabel } = window.JVADays;
+  let clockOffset = 0; // ms à ajouter à Date.now() pour obtenir l'heure réelle
+  const nowDate = () => new Date(Date.now() + clockOffset);
+  const withTimeout = (promise, ms) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))]);
+
+  async function syncClock() {
+    if (!db) return;
+    try {
+      const ref = doc(db, "meta", "clock");
+      const t0 = Date.now();
+      await setDoc(ref, { t: serverTimestamp() });
+      const snap = await getDoc(ref);
+      const t1 = Date.now();
+      const ts = snap.exists() && snap.data().t;
+      if (!ts || typeof ts.toMillis !== "function" || t1 - t0 > 8000) return;
+      clockOffset = ts.toMillis() - (t0 + t1) / 2; // on suppose l'écriture au milieu de l'aller-retour
+    } catch (e) {
+      console.error("Synchronisation de l'heure impossible : horloge de l'appareil utilisée", e);
+    }
   }
-  function minutesNow(d = new Date()) { return d.getHours() * 60 + d.getMinutes(); }
-  // Tirage uniquement du lundi au vendredi (0 = dimanche, 6 = samedi)
-  function isWeekday(d = new Date()) { const day = d.getDay(); return day >= 1 && day <= 5; }
+
+  // Jours sans tirage : week-ends et jours fériés français (calculés), plus les jours ajoutés à la main
+  // dans Firestore (document meta/config : daysOff, et workedHolidays pour les fériés travaillés).
+  let dayConfig = { daysOff: [], workedHolidays: [] };
+  function applyConfig(d) {
+    dayConfig = {
+      daysOff: Array.isArray(d.daysOff) ? d.daysOff : [],
+      workedHolidays: Array.isArray(d.workedHolidays) ? d.workedHolidays : [],
+    };
+  }
+  async function loadConfig() {
+    try {
+      const ref = doc(db, "meta", "config");
+      const snap = await getDoc(ref);
+      if (snap.exists()) applyConfig(snap.data());
+      else await setDoc(ref, { daysOff: [], workedHolidays: [] }); // crée le document pour qu'il soit modifiable dans la console
+    } catch (e) {
+      console.error("Configuration des jours sans tirage indisponible", e);
+    }
+  }
+
+  function todayStr(d = nowDate()) { return dateKey(parisParts(d)); }
+  function minutesNow(d = nowDate()) { const p = parisParts(d); return p.hour * 60 + p.minute; }
+  const isDrawDay = () => dayOffReason(parisParts(nowDate()), dayConfig) === null;
+  // null un jour de tirage ; sinon les textes à afficher
+  function offDayInfo() {
+    const parts = parisParts(nowDate());
+    const off = dayOffReason(parts, dayConfig);
+    if (!off) return null;
+    const next = nextDrawDayLabel(parts, dayConfig);
+    if (off.kind === "weekend") return { status: `Pas de tirage le week-end — reprise ${next}` };
+    if (off.kind === "holiday") return { status: `Jour férié (${off.label}) — reprise ${next}` };
+    return { status: `Pas de tirage aujourd'hui — reprise ${next}` };
+  }
   function escapeHtml(str) { const div = document.createElement("div"); div.textContent = str; return div.innerHTML; }
 
   let app, db;
@@ -703,8 +755,9 @@
 
   function render() {
     const mins = minutesNow();
-    const weekend = !isWeekday();
-    const regOpen = !weekend && mins >= REG_OPEN_MIN && mins <= REG_CLOSE_MIN;
+    const off = offDayInfo();
+    const offDay = off !== null;
+    const regOpen = !offDay && mins >= REG_OPEN_MIN && mins <= REG_CLOSE_MIN;
     const beforeReg = mins < REG_OPEN_MIN;
 
     const alreadyIn = new Set(dayData.participants.map(p => p.name));
@@ -724,7 +777,7 @@
     addBtn.disabled = !canRegister;
 
     let statusText, statusColor, statusBg;
-    if (weekend) { statusText = "Pas de tirage le week-end — reprise lundi"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
+    if (offDay) { statusText = off.status; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
     else if (dayData.winner) { statusText = "Tirage terminé"; statusColor = "var(--success)"; statusBg = "var(--success-soft)"; }
     else if (regOpen) { statusText = "Inscriptions ouvertes jusqu'à 11h55"; statusColor = "var(--accent-ink)"; statusBg = "var(--accent-soft)"; }
     else if (beforeReg) { statusText = "Inscriptions à partir de 7h00"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
@@ -746,10 +799,10 @@
       `).join("");
     }
 
-    drawBtn.style.display = (dayData.winner || weekend) ? "none" : "flex";
+    drawBtn.style.display = (dayData.winner || offDay) ? "none" : "flex";
     drawBtn.disabled = rolling || dayData.participants.length === 0;
     drawBtnLabel.textContent = rolling ? "Tirage en cours…" : (mins < DRAW_MIN ? "Lancer le tirage maintenant" : "Lancer le tirage");
-    autoHintEl.textContent = (!weekend && !dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
+    autoHintEl.textContent = (!offDay && !dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
 
     if (rolling || revealing) {
       revealWrap.style.display = "block";
@@ -763,7 +816,7 @@
           ${dayData.winner.bag ? `<span class="bag-line">${escapeHtml(bagText(dayData.winner.bag))}</span>` : ""}
           ${dayData.winner.reassignedFrom ? `<p class="reassign-note">Attribué à la place de ${escapeHtml(dayData.winner.reassignedFrom)}</p>` : ""}
         </div>
-        ${isWeekday() ? `<button class="link-btn" id="reassignBtn">Quelqu'un d'autre est allé chercher les sacs ?</button>` : ""}
+        ${isDrawDay() ? `<button class="link-btn" id="reassignBtn">Quelqu'un d'autre est allé chercher les sacs ?</button>` : ""}
       `;
     } else {
       revealWrap.style.display = "none";
@@ -826,7 +879,8 @@
     const bag = bagInput.value.trim();
     if (!name || !PARTICIPANTS_LIST.includes(name)) { showError("Choisis un nom dans la liste."); return; }
     if (!bag) { showError("Merci d'indiquer un numéro de sac."); return; }
-    if (!isWeekday()) { showError("Pas de tirage le week-end : les inscriptions reprennent lundi."); return; }
+    const off = offDayInfo();
+    if (off) { showError(off.status); return; }
     const mins = minutesNow();
     if (mins < REG_OPEN_MIN || mins > REG_CLOSE_MIN) { showError("Les inscriptions sont fermées (ouvertes de 7h00 à 11h55)."); return; }
     try {
@@ -859,7 +913,7 @@
   }
 
   async function doDraw() {
-    if (!isWeekday()) return null;
+    if (!isDrawDay()) return null;
     let winnerResult = null;
     try {
       winnerResult = await runTransaction(db, async (tx) => {
@@ -883,7 +937,7 @@
           if (filtered.length > 0) pool = filtered;
         }
         const chosen = pool[Math.floor(Math.random() * pool.length)];
-        const entry = { name: chosen.name, bag: chosen.bag, date: new Date().toLocaleDateString("fr-FR") };
+        const entry = { name: chosen.name, bag: chosen.bag, date: frDate(parisParts(nowDate())) };
 
         tx.set(dayRef(), { ...data, winner: chosen, drawnAt: serverTimestamp() });
         tx.set(historyRef(), { entries: [entry, ...entries].slice(0, 30) });
@@ -898,7 +952,7 @@
   // donc c'est bien cette personne qui sera écartée demain, et la personne initialement tirée
   // redevient éligible.
   async function reassignWinner(newName) {
-    if (!isWeekday() || !PARTICIPANTS_LIST.includes(newName)) return;
+    if (!isDrawDay() || !PARTICIPANTS_LIST.includes(newName)) return;
     try {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(dayRef());
@@ -910,7 +964,7 @@
         const originalName = data.winner.reassignedFrom || data.winner.name;
         const newWinner = { name: newName, bag: registered ? registered.bag : "", reassignedFrom: originalName };
 
-        const today = new Date().toLocaleDateString("fr-FR");
+        const today = frDate(parisParts(nowDate()));
         const entry = { name: newName, bag: newWinner.bag, date: today, reassignedFrom: originalName };
         const entries = histSnap.exists() ? (histSnap.data().entries || []) : [];
         const lastIsToday = entries[0] && entries[0].name === data.winner.name && entries[0].date === today;
@@ -1039,7 +1093,8 @@
   }
 
   async function manualDraw() {
-    if (!isWeekday()) { showError("Pas de tirage le week-end."); return; }
+    const off = offDayInfo();
+    if (off) { showError(off.status); return; }
     if (dayData.winner || dayData.participants.length === 0) return;
     const n = dayData.participants.length;
     const ok = await confirmDialog({
@@ -1056,7 +1111,7 @@
   let autoDrawInFlight = false;
   async function checkAutoDraw() {
     if (autoDrawInFlight) return;
-    if (!isWeekday()) return;
+    if (!isDrawDay()) return;
     if (dayData.winner) return;
     if (minutesNow() < DRAW_MIN) return;
     if (!dayData.participants || dayData.participants.length === 0) return;
@@ -1076,9 +1131,17 @@
     if (!isConfigured) return; // on n'initialise pas Firebase tant que la config n'est pas remplie
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
+    // Heure serveur et jours sans tirage d'abord : le tirage automatique ne doit jamais partir sur une horloge fausse
+    await Promise.all([withTimeout(syncClock(), 4000), loadConfig()]);
+    currentDayId = todayStr(); // recalculé maintenant que l'heure est fiable
     await ensureDayDoc();
     subscribeDay();
     subscribeHistory();
+    onSnapshot(doc(db, "meta", "config"), (snap) => {
+      applyConfig(snap.exists() ? snap.data() : {});
+      render();
+    });
+    setInterval(syncClock, 30 * 60 * 1000);
     onSnapshot(doc(db, "meta", "emojis"), (snap) => {
       emojis = snap.exists() ? (snap.data().map || {}) : {};
       render();
@@ -1098,12 +1161,12 @@
     resetBtn.addEventListener("click", resetDay);
 
     setInterval(() => {
-      clockEl.textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      clockEl.textContent = nowDate().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
       switchDayIfNeeded();
       checkAutoDraw();
       render();
     }, 8000);
-    clockEl.textContent = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    clockEl.textContent = nowDate().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
     render();
   }
 
