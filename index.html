@@ -200,6 +200,16 @@
   }
   .emoji-opt:hover { background: var(--accent-soft); }
   .emoji-opt.selected { outline: 2px solid var(--accent); }
+  .emoji-custom-row { display: flex; gap: 8px; margin: 0 0 8px; }
+  .emoji-custom-row input {
+    flex: 1; min-width: 0; padding: 12px 14px; border-radius: 14px; background: var(--chip); color: var(--ink);
+    border: 1.5px solid transparent; outline: none; font-size: 16px; /* 16px : évite le zoom automatique sur iPhone */
+    font-family: 'Manrope', sans-serif; font-weight: 600;
+  }
+  .emoji-custom-row input:focus { border-color: var(--accent); background: var(--surface); }
+  .emoji-custom-ok { flex: none; padding: 0 20px; }
+  .emoji-error { font-size: 12.5px; color: var(--danger); font-weight: 600; margin: 0 0 12px; line-height: 1.4; }
+  .emoji-custom-row + .emoji-error + .modal-actions, .emoji-custom-row + .modal-actions { margin-top: 12px; }
 
   .link-btn {
     display: block; margin: 14px auto 0; background: none; border: none; cursor: pointer; padding: 4px 6px;
@@ -376,6 +386,11 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="emojiTitle">
       <h2 id="emojiTitle"></h2>
       <div class="emoji-grid" id="emojiGrid"></div>
+      <div class="emoji-custom-row">
+        <input type="text" id="emojiCustom" placeholder="Ou tape ton émoji…" maxlength="30" autocomplete="off" aria-label="Taper un émoji">
+        <button type="button" class="modal-btn emoji-custom-ok" id="emojiCustomOk">OK</button>
+      </div>
+      <p class="emoji-error" id="emojiError" style="display:none;">Ce n'est pas un émoji — utilise le clavier émoji de ton appareil.</p>
       <div class="modal-actions">
         <button class="modal-btn ghost" id="emojiNone">Initiales</button>
         <button class="modal-btn ghost" id="emojiCancel">Annuler</button>
@@ -476,6 +491,7 @@
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
   const emojiBtn = el("emojiBtn"), emojiModal = el("emojiModal"), emojiTitle = el("emojiTitle"), emojiGrid = el("emojiGrid");
   const emojiNone = el("emojiNone"), emojiCancel = el("emojiCancel");
+  const emojiCustom = el("emojiCustom"), emojiCustomOk = el("emojiCustomOk"), emojiError = el("emojiError");
   const confirmModal = el("confirmModal"), confirmTitle = el("confirmTitle"), confirmText = el("confirmText");
   const confirmOk = el("confirmOk"), confirmCancel = el("confirmCancel"), confirmSelect = el("confirmSelect");
 
@@ -486,7 +502,19 @@
     "🌈","🚀","👑","🎯","🧠","💪","😎","🤓","🥳","😴","🤠","🥷","🧙","🦸","🤖","👻",
   ];
 
-  // Sélecteur d'émoji : retourne l'émoji choisi, "" pour revenir aux initiales, ou undefined si annulé.
+  // Extrait le premier émoji d'un texte saisi ou collé (gère drapeaux, teintes de peau, séquences ZWJ…).
+  // Retourne "" si le texte ne contient aucun émoji.
+  function firstEmoji(text) {
+    const t = (text || "").trim();
+    if (!t) return "";
+    const graphemes = (typeof Intl !== "undefined" && Intl.Segmenter)
+      ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), (s) => s.segment)
+      : Array.from(t);
+    return graphemes.find((g) => /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(g)) || "";
+  }
+
+  // Sélecteur d'émoji : retourne l'émoji choisi (grille ou saisie libre), "" pour revenir aux initiales,
+  // ou undefined si annulé.
   function pickEmoji(name) {
     return new Promise((resolve) => {
       const current = emojiFor(name);
@@ -494,6 +522,9 @@
       emojiGrid.innerHTML = EMOJI_CHOICES.map(e =>
         `<button type="button" class="emoji-opt${e === current ? " selected" : ""}" data-e="${e}">${e}</button>`
       ).join("");
+      // si l'émoji actuel vient de la saisie libre, on l'affiche dans le champ
+      emojiCustom.value = current && !EMOJI_CHOICES.includes(current) ? current : "";
+      emojiError.style.display = "none";
       emojiModal.style.display = "flex";
 
       const finish = (value) => {
@@ -501,6 +532,9 @@
         emojiGrid.removeEventListener("click", onGrid);
         emojiNone.removeEventListener("click", onNone);
         emojiCancel.removeEventListener("click", onCancel);
+        emojiCustomOk.removeEventListener("click", onCustom);
+        emojiCustom.removeEventListener("keydown", onCustomKey);
+        emojiCustom.removeEventListener("input", onCustomInput);
         emojiModal.removeEventListener("click", onBackdrop);
         document.removeEventListener("keydown", onKey);
         resolve(value);
@@ -508,12 +542,22 @@
       const onGrid = (ev) => { const b = ev.target.closest(".emoji-opt"); if (b) finish(b.dataset.e); };
       const onNone = () => finish("");
       const onCancel = () => finish(undefined);
+      const onCustom = () => {
+        const e = firstEmoji(emojiCustom.value);
+        if (!e) { emojiError.style.display = "block"; return; }
+        finish(e);
+      };
+      const onCustomKey = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); onCustom(); } };
+      const onCustomInput = () => { emojiError.style.display = "none"; };
       const onBackdrop = (ev) => { if (ev.target === emojiModal) finish(undefined); };
       const onKey = (ev) => { if (ev.key === "Escape") finish(undefined); };
 
       emojiGrid.addEventListener("click", onGrid);
       emojiNone.addEventListener("click", onNone);
       emojiCancel.addEventListener("click", onCancel);
+      emojiCustomOk.addEventListener("click", onCustom);
+      emojiCustom.addEventListener("keydown", onCustomKey);
+      emojiCustom.addEventListener("input", onCustomInput);
       emojiModal.addEventListener("click", onBackdrop);
       document.addEventListener("keydown", onKey);
     });
