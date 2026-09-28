@@ -2,7 +2,7 @@
 // Configuration du cache pour la PWA
 // ============================================================
 const CACHE_NAME = "tirage-repas-shell-v1";
-const SHELL_FILES = ["./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const SHELL_FILES = ["./index.html", "./days.js", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 // ============================================================
 // Notifications Web Push natives (indépendantes de Firebase Cloud
@@ -55,6 +55,8 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  // Uniquement les lectures (GET) : le cache ne gère pas les autres méthodes.
+  if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   // On ne gère que les requêtes de la même origine (pas Firebase, CDN, etc.)
   if (url.origin !== self.location.origin) return;
