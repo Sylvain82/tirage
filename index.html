@@ -94,7 +94,15 @@
   }
   .brand-icon img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .eyebrow { font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin: 0; text-transform: uppercase; font-weight: 600; }
-  .clock { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 5px; font-weight: 500; }
+  .datetime { text-align: right; line-height: 1.35; }
+  .date-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: capitalize; margin: 0; }
+  .clock { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 5px; font-weight: 500; justify-content: flex-end; margin: 0; }
+  .hours-note { font-size: 12px; color: var(--muted); font-weight: 600; margin: 6px 0 0; }
+  .countdown-pill {
+    display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; padding: 6px 12px; border-radius: 999px;
+    font-size: 13px; font-weight: 700; background: var(--accent-soft); color: var(--accent-ink);
+  }
+  .countdown-pill .cd-time { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
   h1 { font-size: 26px; line-height: 1.15; margin: 0; color: var(--ink); font-weight: 700; letter-spacing: -0.01em; }
 
   .status-pill {
@@ -317,7 +325,10 @@
           <p class="eyebrow">REFECTORY - Bâtiment B</p>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <p class="clock mono" id="clock">--:--</p>
+          <div class="datetime">
+            <p class="date-label mono" id="dateLabel"></p>
+            <p class="clock mono" id="clock">--:--</p>
+          </div>
           <button id="notifToggle" class="icon-btn ghost" style="width:34px;height:34px;border-radius:10px;" aria-label="Activer les notifications">
             <span id="notifIcon">🔕</span>
           </button>
@@ -328,6 +339,8 @@
       </div>
       <h1>Qui va chercher les sacs&nbsp;?</h1>
       <span class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusLabel"></span></span>
+      <p class="hours-note mono" id="hoursNote"></p>
+      <p class="countdown-pill mono" id="countdownPill" style="display:none;">⏳ Tirage dans <span class="cd-time" id="countdownTime"></span></p>
     </div>
 
     <div class="body">
@@ -515,6 +528,13 @@
 
   function todayStr(d = nowDate()) { return dateKey(parisParts(d)); }
   function minutesNow(d = nowDate()) { const p = parisParts(d); return p.hour * 60 + p.minute; }
+  function formatHM(totalMin) { return `${Math.floor(totalMin / 60)}h${String(totalMin % 60).padStart(2, "0")}`; }
+  const pad2 = (n) => String(n).padStart(2, "0");
+  // Secondes restantes avant le tirage de 11h56 (heure de Paris), 0 si l'heure est dépassée.
+  function secondsUntilDraw(d = nowDate()) {
+    const p = parisParts(d);
+    return Math.max(0, DRAW_MIN * 60 - (p.hour * 3600 + p.minute * 60 + p.second));
+  }
   const isDrawDay = () => dayOffReason(parisParts(nowDate()), dayConfig) === null;
   // null un jour de tirage ; sinon les textes à afficher
   function offDayInfo() {
@@ -543,7 +563,8 @@
   const listWrap = el("listWrap"), drawBtn = el("drawBtn");
   const drawBtnLabel = el("drawBtnLabel"), resetBtn = el("resetBtn"), revealWrap = el("revealWrap");
   const historySection = el("historySection"), historyList = el("historyList");
-  const clockEl = el("clock"), statusPillEl = el("statusPill"), statusDotEl = el("statusDot"), statusLabelEl = el("statusLabel"), autoHintEl = el("autoHint");
+  const clockEl = el("clock"), dateLabelEl = el("dateLabel"), statusPillEl = el("statusPill"), statusDotEl = el("statusDot"), statusLabelEl = el("statusLabel"), autoHintEl = el("autoHint");
+  const hoursNoteEl = el("hoursNote"), countdownPillEl = el("countdownPill"), countdownTimeEl = el("countdownTime");
   const themeToggle = el("themeToggle"), themeIcon = el("themeIcon");
   const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
@@ -804,6 +825,7 @@
     drawBtn.disabled = rolling || dayData.participants.length === 0;
     drawBtnLabel.textContent = rolling ? "Tirage en cours…" : (mins < DRAW_MIN ? "Lancer le tirage maintenant" : "Lancer le tirage");
     autoHintEl.textContent = (!offDay && !dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
+    updateHoursAndCountdown();
 
     if (rolling || revealing) {
       revealWrap.style.display = "block";
@@ -836,6 +858,18 @@
           <span class="h-date">${escapeHtml(h.date)}</span>
         </div>
       `).join("");
+    }
+  }
+
+  function updateHoursAndCountdown() {
+    hoursNoteEl.textContent = `Inscriptions de ${formatHM(REG_OPEN_MIN)} à ${formatHM(REG_CLOSE_MIN)} · Tirage à ${formatHM(DRAW_MIN)}`;
+
+    const remaining = secondsUntilDraw();
+    const show = !offDayInfo() && !dayData.winner && remaining > 0 && remaining <= 30 * 60;
+    countdownPillEl.style.display = show ? "inline-flex" : "none";
+    autoHintEl.style.display = show ? "none" : "block";
+    if (show) {
+      countdownTimeEl.textContent = `${pad2(Math.floor(remaining / 60))}:${pad2(remaining % 60)}`;
     }
   }
 
@@ -1161,13 +1195,20 @@
     drawBtn.addEventListener("click", manualDraw);
     resetBtn.addEventListener("click", resetDay);
 
+    const updateClock = () => {
+      const now = nowDate();
+      clockEl.textContent = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+      dateLabelEl.textContent = now.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/Paris" }).replace(".", "");
+    };
     setInterval(() => {
-      clockEl.textContent = nowDate().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+      updateClock();
       switchDayIfNeeded();
       checkAutoDraw();
       render();
     }, 8000);
-    clockEl.textContent = nowDate().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+    setInterval(updateHoursAndCountdown, 1000); // tic seconde par seconde, indépendant du reste (aucun accès réseau)
+    updateClock();
+    updateHoursAndCountdown();
     render();
   }
 
