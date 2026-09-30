@@ -9,7 +9,7 @@
   const TZ = "Europe/Paris";
   const parisFmt = new Intl.DateTimeFormat("en-US", {
     timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
   });
   const WEEKDAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -25,7 +25,7 @@
     const p = {};
     for (const { type, value } of parisFmt.formatToParts(date)) p[type] = value;
     const year = +p.year, month = +p.month, day = +p.day;
-    return { year, month, day, hour: +p.hour % 24, minute: +p.minute, weekday: weekdayOf(year, month, day) };
+    return { year, month, day, hour: +p.hour % 24, minute: +p.minute, second: +p.second, weekday: weekdayOf(year, month, day) };
   }
 
   function dateKey(parts) { return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`; }
