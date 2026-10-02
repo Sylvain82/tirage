@@ -79,8 +79,8 @@
 
   .card {
     position: relative;
-    background: var(--surface); width: 100%; max-width: 460px; border-radius: 28px;
-    box-shadow: 0 24px 60px -28px var(--shadow), 0 2px 6px rgba(20,23,26,0.04);
+    background: var(--surface); width: 100%; max-width: 460px; border-radius: 34px;
+    box-shadow: 0 30px 70px -32px var(--shadow), 0 10px 24px -16px rgba(20,23,26,0.08);
     overflow: hidden; border: 1px solid var(--line); transition: background 0.2s ease, border-color 0.2s ease;
   }
 
@@ -88,7 +88,7 @@
   .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .brand { display: flex; align-items: center; gap: 10px; }
   .brand-icon {
-    width: 40px; height: 40px; border-radius: 12px; background: #152d1d;
+    width: 42px; height: 42px; border-radius: 15px; background: #152d1d;
     display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0;
     overflow: hidden;
   }
@@ -117,7 +117,7 @@
 
   .add-row { display: flex; gap: 10px; flex-wrap: wrap; }
   .add-row select, .add-row input[type="text"] {
-    padding: 13px 14px; border-radius: 14px; font-size: 15px; background: var(--chip); color: var(--ink);
+    padding: 14px 16px; border-radius: 18px; font-size: 15px; background: var(--chip); color: var(--ink);
     border: 1.5px solid transparent; font-family: 'Manrope', sans-serif; font-weight: 600; outline: none;
     transition: border-color 0.15s ease;
   }
@@ -127,7 +127,7 @@
   .add-row select:disabled, .add-row input:disabled { opacity: 0.45; }
 
   .icon-btn {
-    width: 46px; height: 46px; border-radius: 14px; background: var(--btn-bg); color: var(--btn-text); border: none;
+    width: 46px; height: 46px; border-radius: 17px; background: var(--btn-bg); color: var(--btn-text); border: none;
     display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
     transition: transform 0.12s ease, background 0.15s ease;
   }
@@ -142,12 +142,12 @@
 
   .empty-msg { font-size: 14px; color: var(--muted); margin: 0; padding: 6px 2px; }
 
-  .roster { display: flex; flex-direction: column; gap: 6px; }
+  .roster { display: flex; flex-direction: column; gap: 8px; }
   .chip-row {
-    display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 14px; background: var(--chip);
+    display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 19px; background: var(--chip);
   }
   .avatar {
-    width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
     font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; font-family: 'Space Grotesk', sans-serif;
   }
   .chip-row .name { font-weight: 700; font-size: 15px; flex: 1; }
@@ -158,7 +158,7 @@
 
   .lock-note {
     display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); font-weight: 600;
-    background: var(--chip); padding: 9px 12px; border-radius: 12px;
+    background: var(--chip); padding: 11px 14px; border-radius: 17px;
   }
 
   .modal-backdrop {
@@ -166,7 +166,7 @@
     justify-content: center; padding: 20px; z-index: 50; backdrop-filter: blur(2px);
   }
   .modal {
-    background: var(--surface); color: var(--ink); width: 100%; max-width: 360px; border-radius: 22px;
+    background: var(--surface); color: var(--ink); width: 100%; max-width: 360px; border-radius: 28px;
     padding: 22px 22px 18px; border: 1px solid var(--line); box-shadow: 0 30px 70px -20px var(--shadow);
     animation: popIn 0.25s cubic-bezier(.22,1.1,.4,1) forwards;
   }
@@ -174,13 +174,13 @@
   .modal p { font-size: 14px; color: var(--muted); margin: 0 0 18px; line-height: 1.45; font-weight: 500; }
   .modal-actions { display: flex; gap: 10px; }
   .modal-btn {
-    flex: 1; padding: 13px; border-radius: 14px; border: none; cursor: pointer; font-size: 15px; font-weight: 700;
+    flex: 1; padding: 14px; border-radius: 18px; border: none; cursor: pointer; font-size: 15px; font-weight: 700;
     font-family: 'Manrope', sans-serif; background: var(--accent); color: #fff;
   }
   .modal-btn.ghost { background: var(--chip); color: var(--ink); }
   .modal-btn.danger { background: var(--danger); }
   .modal-select {
-    display: none; width: 100%; padding: 13px 14px; border-radius: 14px; font-size: 15px; background: var(--chip);
+    display: none; width: 100%; padding: 13px 14px; border-radius: 18px; font-size: 15px; background: var(--chip);
     color: var(--ink); border: 1.5px solid transparent; font-family: 'Manrope', sans-serif; font-weight: 600;
     outline: none; margin: 0 0 18px; appearance: none;
   }
@@ -194,7 +194,7 @@
   .chip-row .avatar[data-emoji-for]:hover { transform: scale(1.08); }
 
   .emoji-btn {
-    width: 46px; height: 46px; border-radius: 14px; background: var(--chip); border: 1.5px solid transparent;
+    width: 46px; height: 46px; border-radius: 17px; background: var(--chip); border: 1.5px solid transparent;
     font-size: 22px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
     padding: 0; transition: transform 0.12s ease, border-color 0.15s ease;
   }
@@ -204,7 +204,7 @@
     display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; max-height: 240px; overflow-y: auto; margin: 0 0 16px;
   }
   .emoji-opt {
-    aspect-ratio: 1; border: none; background: var(--chip); border-radius: 10px; font-size: 21px; cursor: pointer;
+    aspect-ratio: 1; border: none; background: var(--chip); border-radius: 13px; font-size: 21px; cursor: pointer;
     padding: 0; display: flex; align-items: center; justify-content: center;
   }
   .emoji-opt:hover { background: var(--accent-soft); }
@@ -220,7 +220,7 @@
   .history-row .h-note { color: var(--muted); font-weight: 600; font-size: 11.5px; }
 
   .token-box {
-    background: var(--accent-soft); border: 1px solid var(--success-border); border-radius: 12px; padding: 10px 12px;
+    background: var(--accent-soft); border: 1px solid var(--success-border); border-radius: 17px; padding: 12px 14px;
   }
   .token-box .token-label { font-size: 11px; color: var(--accent-ink); font-weight: 600; margin: 0 0 6px; line-height: 1.4; }
   .token-box .token-value {
@@ -230,7 +230,7 @@
 
   .action-row { display: flex; gap: 10px; }
   .draw-btn {
-    flex: 1; padding: 15px; border-radius: 16px; border: none; cursor: pointer; background: var(--accent); color: #fff;
+    flex: 1; padding: 16px; border-radius: 21px; border: none; cursor: pointer; background: var(--accent); color: #fff;
     font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 9px;
     font-family: 'Manrope', sans-serif; transition: transform 0.12s ease, box-shadow 0.15s ease;
     box-shadow: 0 10px 24px -10px rgba(29,74,46,0.5);
@@ -249,7 +249,7 @@
   .flap-tag.done { color: var(--success); }
   .flap-row { display: grid; grid-template-columns: repeat(8, minmax(0, 38px)); gap: 5px; justify-content: center; }
   .sf {
-    position: relative; height: 54px; border-radius: 8px; background: var(--chip); border: 1px solid var(--line);
+    position: relative; height: 54px; border-radius: 12px; background: var(--chip); border: 1px solid var(--line);
     display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace;
     font-size: 26px; font-weight: 600; color: var(--ink);
     transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
@@ -269,7 +269,7 @@
 
   @keyframes popIn { 0% { opacity: 0; transform: scale(0.7) translateY(6px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
   .winner-card {
-    text-align: center; padding: 22px 18px; border-radius: 20px;
+    text-align: center; padding: 24px 20px; border-radius: 26px;
     background: linear-gradient(180deg, var(--success-soft), var(--surface));
     border: 1px solid var(--success-border); animation: popIn 0.4s cubic-bezier(.22,1.1,.4,1) forwards;
   }
@@ -278,7 +278,7 @@
     margin: 0 0 12px; text-transform: uppercase; font-weight: 700;
   }
   .winner-avatar {
-    width: 66px; height: 66px; border-radius: 20px; margin: 0 auto 12px; display: flex; align-items: center;
+    width: 66px; height: 66px; border-radius: 23px; margin: 0 auto 12px; display: flex; align-items: center;
     justify-content: center; font-size: 24px; font-weight: 700; color: #fff; font-family: 'Space Grotesk', sans-serif;
     box-shadow: 0 12px 24px -10px rgba(22,163,74,0.45);
   }
@@ -293,9 +293,9 @@
     font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 10px;
     text-transform: uppercase;
   }
-  .history-list { max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .history-list { max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
   .history-row {
-    display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 6px 2px;
+    display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 8px 12px; border-radius: 15px; background: var(--chip);
   }
   .history-row .h-avatar { width: 22px; height: 22px; border-radius: 7px; font-size: 9px; }
   .history-row .h-name { font-weight: 700; flex: 1; }
