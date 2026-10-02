@@ -210,6 +210,20 @@
   .emoji-opt:hover { background: var(--accent-soft); }
   .emoji-opt.selected { outline: 2px solid var(--accent); }
 
+  .stats-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .stats-row .stats-name { width: 70px; flex: none; font-weight: 700; font-size: 13px; }
+  .stats-row .stats-bar-track { flex: 1; height: 8px; border-radius: 999px; background: var(--chip); overflow: hidden; }
+  .stats-row .stats-bar-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+  .stats-row .stats-pct { width: 54px; flex: none; text-align: right; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .stats-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 12px 0; }
+  .stats-note { font-size: 11.5px; color: var(--muted); margin: 12px 0 0; line-height: 1.4; }
+
+  .mine-cancel {
+    background: none; border: none; cursor: pointer; color: var(--muted); display: flex; flex: none;
+    padding: 2px; border-radius: 8px;
+  }
+  .mine-cancel:hover { color: var(--danger); background: var(--danger-soft); }
+
   .link-btn {
     display: block; margin: 14px auto 0; background: none; border: none; cursor: pointer; padding: 4px 6px;
     color: var(--muted); font-size: 12.5px; font-weight: 600; font-family: 'Manrope', sans-serif;
@@ -224,7 +238,7 @@
   }
   .token-box .token-label { font-size: 11px; color: var(--accent-ink); font-weight: 600; margin: 0 0 6px; line-height: 1.4; }
   .token-box .token-value {
-    display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink); word-break: break-all;
+    display: block; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink); word-break: break-all;
     background: var(--surface); padding: 6px 8px; border-radius: 8px; user-select: all;
   }
 
@@ -237,7 +251,7 @@
   }
   .draw-btn:hover:not(:disabled) { transform: translateY(-1px); }
   .draw-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
-  .hint { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); margin: 0; text-align: center; }
+  .hint { font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--muted); margin: 0; text-align: center; }
 
   .reveal { padding: 0 28px 26px; }
   /* Panneau d'aéroport (révélation du tirage) */
@@ -332,6 +346,9 @@
           <button id="notifToggle" class="icon-btn ghost" style="width:34px;height:34px;border-radius:10px;" aria-label="Activer les notifications">
             <span id="notifIcon">🔕</span>
           </button>
+          <button id="statsBtn" class="icon-btn ghost" style="width:34px;height:34px;border-radius:10px;" aria-label="Statistiques">
+            <span>📊</span>
+          </button>
           <button id="themeToggle" class="icon-btn ghost" style="width:34px;height:34px;border-radius:10px;" aria-label="Changer de thème">
             <span id="themeIcon">🌙</span>
           </button>
@@ -417,12 +434,24 @@
     </div>
   </div>
 
+<div class="modal-backdrop" id="statsModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+      <h2 id="statsTitle">Statistiques</h2>
+      <p class="modal-text-sub" style="font-size:13px;color:var(--muted);margin:0 0 14px;">Part des inscriptions qui se sont soldées par un tirage</p>
+      <div id="statsBody"></div>
+      <p class="stats-note">Le gagnant précédent est écarté du tirage suivant, donc un pourcentage élevé n'est pas forcément injuste.</p>
+      <div class="modal-actions">
+        <button class="modal-btn ghost" id="statsClose">Fermer</button>
+      </div>
+    </div>
+  </div>
+
 <script src="days.js"></script>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
   import {
-    getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp
+    getFirestore, doc, getDoc, setDoc, onSnapshot, runTransaction, serverTimestamp, increment
   } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
   // Clé publique VAPID pour le Web Push natif (indépendant de Firebase Cloud Messaging,
   // donc pas besoin du plan payant Blaze). La clé privée correspondante vit uniquement
@@ -566,6 +595,7 @@
   const clockEl = el("clock"), dateLabelEl = el("dateLabel"), statusPillEl = el("statusPill"), statusDotEl = el("statusDot"), statusLabelEl = el("statusLabel"), autoHintEl = el("autoHint");
   const hoursNoteEl = el("hoursNote"), countdownPillEl = el("countdownPill"), countdownTimeEl = el("countdownTime");
   const themeToggle = el("themeToggle"), themeIcon = el("themeIcon");
+  const statsBtn = el("statsBtn"), statsModal = el("statsModal"), statsBody = el("statsBody"), statsClose = el("statsClose");
   const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
   const emojiBtn = el("emojiBtn"), emojiModal = el("emojiModal"), emojiTitle = el("emojiTitle"), emojiGrid = el("emojiGrid");
@@ -624,6 +654,37 @@
       showError("Impossible d'enregistrer l'émoji (réseau).");
     }
   }
+
+  async function openStats() {
+    let data = {};
+    try {
+      const snap = await getDoc(statsRef());
+      data = snap.exists() ? snap.data() : {};
+    } catch (e) { console.error(e); }
+    const participations = data.participations || {};
+    const wins = data.wins || {};
+    const rows = PARTICIPANTS_LIST.map((name) => {
+      const p = Math.max(0, participations[name] || 0);
+      const w = Math.max(0, wins[name] || 0);
+      const pct = p > 0 ? Math.round((w / p) * 100) : 0;
+      return { name, p, w, pct };
+    }).sort((a, b) => b.pct - a.pct || b.p - a.p);
+
+    statsBody.innerHTML = rows.every(r => r.p === 0)
+      ? `<p class="stats-empty">Pas encore d'historique.</p>`
+      : rows.map(r => `
+        <div class="stats-row">
+          <span class="stats-name">${escapeHtml(r.name)}</span>
+          <span class="stats-bar-track"><span class="stats-bar-fill" style="width:${r.pct}%;background:${colorFor(r.name)}"></span></span>
+          <span class="stats-pct">${r.w}/${r.p} · ${r.pct}%</span>
+        </div>
+      `).join("");
+    statsModal.style.display = "flex";
+  }
+  statsBtn.addEventListener("click", openStats);
+  statsClose.addEventListener("click", () => { statsModal.style.display = "none"; });
+  statsModal.addEventListener("click", (e) => { if (e.target === statsModal) statsModal.style.display = "none"; });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") statsModal.style.display = "none"; });
 
   async function changeEmoji(name) {
     if (!PARTICIPANTS_LIST.includes(name)) return;
@@ -769,6 +830,7 @@
 
   function dayRef() { return doc(db, "draws", currentDayId); }
   function historyRef() { return doc(db, "meta", "history"); }
+  function statsRef() { return doc(db, "meta", "stats"); }
 
   function showError(msg) {
     errorMsg.textContent = msg;
@@ -812,11 +874,15 @@
     if (dayData.participants.length === 0) {
       listWrap.innerHTML = '<p class="empty-msg">Personne d\'inscrit pour le moment.</p>';
     } else {
+      const myReg = localStorage.getItem("myReg:" + currentDayId);
       listWrap.innerHTML = dayData.participants.map((p) => `
         <div class="chip-row">
           <div class="avatar${avatarClass(p.name)}" data-emoji-for="${escapeHtml(p.name)}" role="button" title="Changer l'émoji" style="${avatarStyle(p.name)}">${avatarInner(p.name)}</div>
           <span class="name">${escapeHtml(p.name)}</span>
           <span class="bag-badge">Sac n°${escapeHtml(p.bag)}</span>
+          ${(regOpen && myReg === p.name) ? `<button type="button" class="mine-cancel" data-cancel-mine="${escapeHtml(p.name)}" aria-label="Annuler mon inscription" title="Annuler mon inscription">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>` : ""}
         </div>
       `).join("");
     }
@@ -862,6 +928,8 @@
   }
 
   function updateHoursAndCountdown() {
+    const regOpenNow = !offDayInfo() && minutesNow() >= REG_OPEN_MIN && minutesNow() <= REG_CLOSE_MIN;
+    hoursNoteEl.style.display = regOpenNow ? "none" : "block";
     hoursNoteEl.textContent = `Inscriptions de ${formatHM(REG_OPEN_MIN)} à ${formatHM(REG_CLOSE_MIN)} · Tirage à ${formatHM(DRAW_MIN)}`;
 
     const remaining = secondsUntilDraw();
@@ -926,11 +994,37 @@
           throw new Error("DUPLICATE");
         }
         tx.set(dayRef(), { ...data, participants: [...data.participants, { name, bag }] });
+        tx.set(statsRef(), { participations: { [name]: increment(1) } }, { merge: true });
       });
+      // Pas de compte à créer : l'appareil retient juste qui s'est inscrit avec lui aujourd'hui,
+      // pour proposer un bouton d'annulation uniquement sur SA propre ligne — jamais sur celle des autres.
+      localStorage.setItem("myReg:" + currentDayId, name);
       nameInput.value = ""; bagInput.value = ""; showError("");
+      render();
     } catch (e) {
       if (e.message === "DUPLICATE") showError("Déjà inscrit·e pour aujourd'hui.");
       else { console.error(e); showError("Erreur réseau, réessaie."); }
+    }
+  }
+
+  // Annule l'inscription de la personne qui a fait cette action sur CET appareil — jamais celle
+  // d'un autre : aucun identifiant à créer, juste ce que l'appareil a retenu localement.
+  async function removeOwnParticipant(name) {
+    if (localStorage.getItem("myReg:" + currentDayId) !== name) return;
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const data = snap.data();
+        if (!data || data.winner) return;
+        if (!(data.participants || []).some(p => p.name === name)) return;
+        tx.set(dayRef(), { ...data, participants: data.participants.filter(p => p.name !== name) });
+        tx.set(statsRef(), { participations: { [name]: increment(-1) } }, { merge: true });
+      });
+      localStorage.removeItem("myReg:" + currentDayId);
+      showError("");
+    } catch (e) {
+      console.error(e);
+      showError("Erreur réseau, réessaie.");
     }
   }
 
@@ -976,6 +1070,7 @@
 
         tx.set(dayRef(), { ...data, winner: chosen, drawnAt: serverTimestamp() });
         tx.set(historyRef(), { entries: [entry, ...entries].slice(0, 30) });
+        tx.set(statsRef(), { wins: { [chosen.name]: increment(1) } }, { merge: true });
         return chosen;
       });
     } catch (e) { console.error(e); }
@@ -1007,6 +1102,7 @@
 
         tx.set(dayRef(), { ...data, winner: newWinner });
         tx.set(historyRef(), { entries: next.slice(0, 30) });
+        tx.set(statsRef(), { wins: { [originalName]: increment(-1), [newName]: increment(1) } }, { merge: true });
       });
       showError("");
     } catch (e) {
@@ -1185,6 +1281,8 @@
     emojiBtn.addEventListener("click", () => { if (nameInput.value) changeEmoji(nameInput.value); });
     nameInput.addEventListener("change", render);
     listWrap.addEventListener("click", (e) => {
+      const cancelBtn = e.target.closest("[data-cancel-mine]");
+      if (cancelBtn) { removeOwnParticipant(cancelBtn.dataset.cancelMine); return; }
       const a = e.target.closest("[data-emoji-for]");
       if (a) changeEmoji(a.dataset.emojiFor);
     });
