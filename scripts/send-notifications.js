@@ -6,7 +6,7 @@
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const Days = require("../days.js");
-const { loadConfig, drawIfNeeded, claimNotification } = require("./draw-logic.js");
+const { loadConfig, drawIfNeeded, claimNotification, winnerMessage } = require("./draw-logic.js");
 
 const DRAW_FALLBACK_MIN = 11 * 60 + 57; // un cran après le tirage automatique de l'appli (11h56)
 
@@ -56,7 +56,7 @@ async function main() {
 
   const payload = JSON.stringify({
     title: "Tirage du jour 🥡",
-    body: `${winner.name} a été désigné·e — Sac n°${winner.bag}`,
+    body: winnerMessage(winner),
     url: "./",
   });
 
