@@ -51,4 +51,10 @@ async function claimNotification({ db, dayRef }) {
   });
 }
 
-module.exports = { loadConfig, drawIfNeeded, claimNotification };
+// Texte de la notification : mêmes mots que dans l'appli (« se porte volontaire » ou « a été désigné·e »).
+function winnerMessage(winner) {
+  const who = winner.volunteer ? `${winner.name} se porte volontaire 🙋` : `${winner.name} a été désigné·e`;
+  return winner.bag ? `${who} — Sac n°${winner.bag}` : who;
+}
+
+module.exports = { loadConfig, drawIfNeeded, claimNotification, winnerMessage };
