@@ -20,6 +20,9 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body || "Un gagnant a été désigné !",
     icon: "icon-192.png",
+    // Même étiquette que la notification locale de l'appli : si l'appareil a déjà affiché l'annonce,
+    // celle-ci la remplace (sans nouveau bruit) au lieu d'en ajouter une seconde plus tard.
+    tag: data.tag || undefined,
     data: { url: data.url || "./" },
   };
 
