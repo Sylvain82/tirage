@@ -859,8 +859,9 @@
 
   function notifyWinner(winner) {
     showLocalNotification("Tirage du jour 🥡", {
-      body: `${winnerSentence(winner)} — Sac n°${winner.bag}`,
+      body: winner.bag ? `${winnerSentence(winner)} — Sac n°${winner.bag}` : winnerSentence(winner),
       icon: "icon-192.png",
+      tag: "tirage-" + currentDayId, // même étiquette que le push de la GitHub Action : une seule notification par tirage
     });
   }
 
