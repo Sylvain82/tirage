@@ -48,6 +48,7 @@
     --blob2: rgba(255, 206, 170, 0.50);
     --blob3: rgba(255, 236, 160, 0.45);
     --shadow: rgba(20, 32, 26, 0.30);
+    --glow: 29, 74, 46; /* teinte (r, g, b) des ombres des boutons : change avec la saison */
     color-scheme: light;
   }
   [data-theme="dark"] {
@@ -152,7 +153,7 @@
   .icon-btn {
     width: 46px; height: 46px; border-radius: 50%; background: var(--accent-grad); color: #fff; border: none;
     display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
-    box-shadow: 0 10px 20px -10px rgba(29, 74, 46, 0.6);
+    box-shadow: 0 10px 20px -10px rgba(var(--glow), 0.6);
     transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease;
   }
   .icon-btn:hover:not(:disabled) { transform: translateY(-2px); }
@@ -251,9 +252,9 @@
     flex: 1; padding: 17px 20px; border-radius: 999px; border: none; cursor: pointer; background: var(--accent-grad); color: #fff;
     font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 9px;
     font-family: 'Manrope', sans-serif; transition: transform 0.12s ease, box-shadow 0.15s ease;
-    box-shadow: 0 16px 30px -14px rgba(29, 74, 46, 0.7);
+    box-shadow: 0 16px 30px -14px rgba(var(--glow), 0.7);
   }
-  .draw-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 34px -14px rgba(29, 74, 46, 0.75); }
+  .draw-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 34px -14px rgba(var(--glow), 0.75); }
   .draw-btn:active:not(:disabled) { transform: scale(0.98); }
   .draw-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
   .volunteer-btn {
@@ -414,6 +415,142 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   }
+
+  /* ============================================================
+     Habillage de saison (Halloween, Noël…) : couleurs de l'en-tête, des boutons et du fond.
+     Choisi automatiquement d'après la date (voir « SAISONS » dans le script). Les palettes sont
+     contrôlées pour garder un texte lisible (contraste WCAG) en clair comme en sombre.
+     ============================================================ */
+  html[data-palette="autumn"] {
+    --hero-1: #4a2410; --hero-2: #7a3d12; --hero-3: #a85a1a;
+    --accent: #7a3410; --accent-2: #b4500f; --accent-ink: #4a2410; --accent-soft: #fdeede;
+    --accent-grad: linear-gradient(135deg, #b4500f 0%, #7a3410 100%); --glow: 122, 52, 16;
+    --blob1: rgba(255,170,90,.50); --blob2: rgba(220,120,60,.35); --blob3: rgba(255,215,130,.45);
+  }
+  html[data-palette="autumn"][data-theme="dark"] {
+    --hero-1: #2a1408; --hero-2: #4a2410; --hero-3: #6e3a14;
+    --accent: #e08a4c; --accent-2: #b4500f; --accent-ink: #ffd9b8; --accent-soft: rgba(224, 138, 76, 0.18);
+    --accent-grad: linear-gradient(135deg, #b4500f 0%, #7a3410 100%); --glow: 122, 52, 16;
+    --blob1: rgba(224,138,76,.22); --blob2: rgba(255,200,120,.08); --blob3: rgba(150,80,40,.14);
+  }
+  html[data-palette="halloween"] {
+    --hero-1: #1a0f2e; --hero-2: #3b1c63; --hero-3: #6a2f9e;
+    --accent: #9a3412; --accent-2: #c2410c; --accent-ink: #4a1d0a; --accent-soft: #ffeadb;
+    --accent-grad: linear-gradient(135deg, #c2410c 0%, #9a3412 100%); --glow: 154, 52, 18;
+    --blob1: rgba(168,85,247,.32); --blob2: rgba(251,146,60,.45); --blob3: rgba(255,200,120,.30);
+  }
+  html[data-palette="halloween"][data-theme="dark"] {
+    --hero-1: #0e0818; --hero-2: #241040; --hero-3: #43206f;
+    --accent: #fb923c; --accent-2: #c2410c; --accent-ink: #ffd9bd; --accent-soft: rgba(251, 146, 60, 0.16);
+    --accent-grad: linear-gradient(135deg, #c2410c 0%, #9a3412 100%); --glow: 154, 52, 18;
+    --blob1: rgba(168,85,247,.28); --blob2: rgba(251,146,60,.12); --blob3: rgba(88,28,135,.20);
+  }
+  html[data-palette="noel"] {
+    --hero-1: #4a0d18; --hero-2: #8a1c2e; --hero-3: #b3263f;
+    --accent: #14532d; --accent-2: #1f7a4d; --accent-ink: #0f3d22; --accent-soft: #e4f4ea;
+    --accent-grad: linear-gradient(135deg, #1f7a4d 0%, #14532d 100%); --glow: 20, 83, 45;
+    --blob1: rgba(239,68,68,.28); --blob2: rgba(34,197,94,.28); --blob3: rgba(255,226,150,.45);
+  }
+  html[data-palette="noel"][data-theme="dark"] {
+    --hero-1: #2a0710; --hero-2: #5a1220; --hero-3: #8a2236;
+    --accent: #4ade80; --accent-2: #1f7a4d; --accent-ink: #c9f2d6; --accent-soft: rgba(74, 222, 128, 0.16);
+    --accent-grad: linear-gradient(135deg, #1f7a4d 0%, #14532d 100%); --glow: 20, 83, 45;
+    --blob1: rgba(239,68,68,.20); --blob2: rgba(34,197,94,.14); --blob3: rgba(255,226,150,.08);
+  }
+  html[data-palette="nouvelan"] {
+    --hero-1: #0e1838; --hero-2: #1c2f6b; --hero-3: #3a55b0;
+    --accent: #92400e; --accent-2: #b45309; --accent-ink: #451a03; --accent-soft: #fdf0d5;
+    --accent-grad: linear-gradient(135deg, #b45309 0%, #92400e 100%); --glow: 146, 64, 14;
+    --blob1: rgba(99,102,241,.32); --blob2: rgba(251,191,36,.45); --blob3: rgba(236,72,153,.16);
+  }
+  html[data-palette="nouvelan"][data-theme="dark"] {
+    --hero-1: #080d22; --hero-2: #121f4d; --hero-3: #26397f;
+    --accent: #fbbf24; --accent-2: #b45309; --accent-ink: #fde9b0; --accent-soft: rgba(251, 191, 36, 0.15);
+    --accent-grad: linear-gradient(135deg, #b45309 0%, #92400e 100%); --glow: 146, 64, 14;
+    --blob1: rgba(99,102,241,.24); --blob2: rgba(251,191,36,.10); --blob3: rgba(236,72,153,.08);
+  }
+  html[data-palette="gold"] {
+    --hero-1: #4a3005; --hero-2: #7a5008; --hero-3: #a2700f;
+    --accent: #854d0e; --accent-2: #a16207; --accent-ink: #422006; --accent-soft: #fdf1d0;
+    --accent-grad: linear-gradient(135deg, #a16207 0%, #854d0e 100%); --glow: 133, 77, 14;
+    --blob1: rgba(250,204,21,.42); --blob2: rgba(251,146,60,.28); --blob3: rgba(253,230,138,.50);
+  }
+  html[data-palette="gold"][data-theme="dark"] {
+    --hero-1: #2a1b03; --hero-2: #4a3005; --hero-3: #6e4a0a;
+    --accent: #facc15; --accent-2: #a16207; --accent-ink: #fdf0b0; --accent-soft: rgba(250, 204, 21, 0.14);
+    --accent-grad: linear-gradient(135deg, #a16207 0%, #854d0e 100%); --glow: 133, 77, 14;
+    --blob1: rgba(250,204,21,.18); --blob2: rgba(251,146,60,.08); --blob3: rgba(253,230,138,.06);
+  }
+  html[data-palette="love"] {
+    --hero-1: #4a0a2a; --hero-2: #861a4e; --hero-3: #b3245f;
+    --accent: #9d174d; --accent-2: #be185d; --accent-ink: #500724; --accent-soft: #fde6ef;
+    --accent-grad: linear-gradient(135deg, #be185d 0%, #9d174d 100%); --glow: 157, 23, 77;
+    --blob1: rgba(244,114,182,.42); --blob2: rgba(251,113,133,.32); --blob3: rgba(255,200,220,.45);
+  }
+  html[data-palette="love"][data-theme="dark"] {
+    --hero-1: #2a0618; --hero-2: #5a1033; --hero-3: #8a1c4e;
+    --accent: #f472b6; --accent-2: #be185d; --accent-ink: #fcd4e6; --accent-soft: rgba(244, 114, 182, 0.16);
+    --accent-grad: linear-gradient(135deg, #be185d 0%, #9d174d 100%); --glow: 157, 23, 77;
+    --blob1: rgba(244,114,182,.22); --blob2: rgba(251,113,133,.10); --blob3: rgba(255,200,220,.06);
+  }
+  html[data-palette="spring"] {
+    --hero-1: #2c1f5e; --hero-2: #4b35a0; --hero-3: #7a5bd0;
+    --accent: #5b2fa6; --accent-2: #6d3fc0; --accent-ink: #2e1065; --accent-soft: #efe8fc;
+    --accent-grad: linear-gradient(135deg, #6d3fc0 0%, #5b2fa6 100%); --glow: 91, 47, 166;
+    --blob1: rgba(196,181,253,.50); --blob2: rgba(253,224,71,.38); --blob3: rgba(167,243,208,.45);
+  }
+  html[data-palette="spring"][data-theme="dark"] {
+    --hero-1: #150f33; --hero-2: #2b1f66; --hero-3: #4a36a0;
+    --accent: #a78bfa; --accent-2: #6d3fc0; --accent-ink: #e4d9ff; --accent-soft: rgba(167, 139, 250, 0.16);
+    --accent-grad: linear-gradient(135deg, #6d3fc0 0%, #5b2fa6 100%); --glow: 91, 47, 166;
+    --blob1: rgba(167,139,250,.22); --blob2: rgba(253,224,71,.08); --blob3: rgba(167,243,208,.08);
+  }
+  html[data-palette="summer"] {
+    --hero-1: #0b3d5c; --hero-2: #0c6482; --hero-3: #0e8aa8;
+    --accent: #155e75; --accent-2: #0e7490; --accent-ink: #083344; --accent-soft: #def4f9;
+    --accent-grad: linear-gradient(135deg, #0e7490 0%, #155e75 100%); --glow: 21, 94, 117;
+    --blob1: rgba(103,232,249,.42); --blob2: rgba(253,224,71,.42); --blob3: rgba(251,146,60,.28);
+  }
+  html[data-palette="summer"][data-theme="dark"] {
+    --hero-1: #06222f; --hero-2: #0a3d56; --hero-3: #0e5f7c;
+    --accent: #22d3ee; --accent-2: #0e7490; --accent-ink: #cffafe; --accent-soft: rgba(34, 211, 238, 0.14);
+    --accent-grad: linear-gradient(135deg, #0e7490 0%, #155e75 100%); --glow: 21, 94, 117;
+    --blob1: rgba(34,211,238,.20); --blob2: rgba(253,224,71,.08); --blob3: rgba(251,146,60,.06);
+  }
+
+  .season-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  .header > :not(.season-layer) { position: relative; z-index: 1; }
+  .season-greeting {
+    display: inline-flex; align-items: center; gap: 6px; margin: 0 0 12px; padding: 6px 13px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 800; letter-spacing: 0.01em; color: #fff;
+    background: rgba(255, 255, 255, 0.18); border: 1px solid rgba(255, 255, 255, 0.28);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .season-greeting[hidden] { display: none; }
+
+  /* Petits motifs qui flottent dans l'en-tête (feuilles, flocons, citrouilles…) : discrets, derrière le texte */
+  .sp {
+    position: absolute; line-height: 1; opacity: 0; will-change: transform, opacity;
+    animation-duration: var(--d, 12s); animation-iteration-count: infinite;
+  }
+  html[data-motion="fall"] .sp { top: -30px; animation-name: spFall; animation-timing-function: linear; }
+  html[data-motion="rise"] .sp { bottom: -30px; animation-name: spRise; animation-timing-function: linear; }
+  html[data-motion="drift"] .sp { top: var(--t, 30%); animation-name: spDrift; animation-timing-function: ease-in-out; animation-direction: alternate; }
+  @keyframes spFall {
+    0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; } 12% { opacity: 0.6; } 88% { opacity: 0.6; }
+    100% { transform: translate3d(var(--dx, 20px), 360px, 0) rotate(var(--r, 180deg)); opacity: 0; }
+  }
+  @keyframes spRise {
+    0% { transform: translate3d(0, 0, 0) scale(0.8); opacity: 0; } 15% { opacity: 0.6; } 85% { opacity: 0.6; }
+    100% { transform: translate3d(var(--dx, -16px), -360px, 0) scale(1.15); opacity: 0; }
+  }
+  @keyframes spDrift {
+    0% { transform: translate3d(-12px, 0, 0) rotate(-8deg); opacity: 0.55; }
+    100% { transform: translate3d(16px, -12px, 0) rotate(8deg); opacity: 0.55; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sp { animation: none !important; opacity: 0.5; top: var(--t, 30%) !important; bottom: auto !important; }
+  }
 </style>
 </head>
 <body>
@@ -425,6 +562,7 @@
 
   <div class="card">
     <div class="header">
+      <div class="season-layer" id="seasonLayer" aria-hidden="true"></div>
       <div class="header-top">
         <div class="brand">
           <div class="brand-icon"><img src="data:image/png;base64,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" alt="Refectory"></div>
@@ -446,6 +584,7 @@
           </button>
         </div>
       </div>
+      <p class="season-greeting" id="seasonGreeting" hidden></p>
       <h1>Qui va chercher les sacs&nbsp;?</h1>
       <span class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusLabel"></span></span>
       <p class="hours-note mono" id="hoursNote"></p>
@@ -615,6 +754,7 @@
   // On ne se fie pas à l'horloge de l'appareil (réglage faux, mauvais fuseau…) : l'écart avec l'heure du
   // serveur est mesuré au démarrage (puis toutes les 30 min), et les heures/jours sont calculés à Paris.
   const { parisParts, dateKey, frDate, dayOffReason, nextDrawDayLabel } = window.JVADays;
+  const seasonOf = window.JVADays.seasonOf || (() => null); // (ancien days.js sans saisons : l'habillage vert habituel reste)
   let clockOffset = 0; // ms à ajouter à Date.now() pour obtenir l'heure réelle
   const nowDate = () => new Date(Date.now() + clockOffset);
   const withTimeout = (promise, ms) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, ms))]);
@@ -699,6 +839,78 @@
   const statsBtn = el("statsBtn"), statsModal = el("statsModal"), statsBody = el("statsBody"), statsClose = el("statsClose");
   const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
+  const seasonLayer = el("seasonLayer"), seasonGreeting = el("seasonGreeting");
+
+  /* ===== SAISONS:DEBUT ===== */
+  // Habillage de saison (Halloween, Noël…). La saison est déterminée par la date (heure de Paris, synchronisée sur
+  // le serveur) ; les couleurs sont définies en CSS (html[data-palette=…]). Pour la prévisualiser sur le site :
+  // ajouter ?saison=noel à l'adresse (ou ?saison=aucune pour retrouver l'habillage habituel).
+  const DEFAULT_THEME_COLOR = "#1d4a2e";
+  const PALETTE_THEME_COLOR = {"autumn": "#7a3d12", "halloween": "#3b1c63", "noel": "#8a1c2e", "nouvelan": "#1c2f6b", "gold": "#7a5008", "love": "#861a4e", "spring": "#4b35a0", "summer": "#0c6482"};
+  const SEASONS = {
+    automne:       { palette: "autumn",   motion: "fall",  greeting: "🍂 Bel automne",              emojis: ["🍂", "🍁", "🌰", "🍂", "🍄"],       confetti: ["#c2410c", "#d97706", "#92400e", "#eab308", "#b45309", "#f59e0b"] },
+    halloween:     { palette: "halloween", motion: "drift", greeting: "🎃 Joyeux Halloween",         emojis: ["🎃", "🦇", "👻", "🕸️", "🦇"],      confetti: ["#f97316", "#a855f7", "#fb923c", "#7e22ce", "#facc15", "#ea580c"] },
+    noel:          { palette: "noel",      motion: "fall",  greeting: "🎄 Joyeux Noël",              emojis: ["❄️", "❄️", "⭐", "🎄", "❄️"],       confetti: ["#ef4444", "#22c55e", "#facc15", "#f8fafc", "#16a34a", "#dc2626"] },
+    nouvelan:      { palette: "nouvelan",  motion: "rise",  greeting: "🥂 Bonne année !",            emojis: ["✨", "🥂", "🎆", "⭐", "✨"],       confetti: ["#fbbf24", "#818cf8", "#f472b6", "#f8fafc", "#f59e0b", "#6366f1"] },
+    rois:          { palette: "gold",      motion: "drift", greeting: "👑 Bonne galette des rois",   emojis: ["👑", "✨", "🥧", "👑"],             confetti: ["#facc15", "#f59e0b", "#fde68a", "#d97706", "#fbbf24", "#fcd34d"] },
+    chandeleur:    { palette: "gold",      motion: "fall",  greeting: "🥞 Bonne Chandeleur",         emojis: ["🥞", "✨", "🍋", "🥞"],             confetti: ["#facc15", "#f59e0b", "#fde68a", "#d97706", "#fbbf24", "#fcd34d"] },
+    saintvalentin: { palette: "love",      motion: "rise",  greeting: "💖 Joyeuse Saint-Valentin",   emojis: ["💖", "💘", "🌹", "💕"],             confetti: ["#f472b6", "#ec4899", "#fb7185", "#fda4af", "#e11d48", "#fbcfe8"] },
+    paques:        { palette: "spring",    motion: "drift", greeting: "🐣 Joyeuses Pâques",          emojis: ["🐣", "🥚", "🐰", "🌷"],             confetti: ["#a78bfa", "#facc15", "#86efac", "#f9a8d4", "#7dd3fc", "#c4b5fd"] },
+    ete:           { palette: "summer",    motion: "drift", greeting: "☀️ Bon été",                  emojis: ["☀️", "🌴", "🍉", "🍦"],             confetti: ["#22d3ee", "#facc15", "#fb923c", "#4ade80", "#38bdf8", "#fde047"] },
+  };
+  let appliedSeason; // undefined tant qu'aucune saison n'a été appliquée (null = habillage habituel)
+
+  function currentSeasonKey() {
+    let wanted = null;
+    try { wanted = new URLSearchParams(location.search).get("saison"); } catch (e) { /* ignoré */ }
+    if (wanted === "aucune" || wanted === "defaut") return null;
+    if (wanted && SEASONS[wanted]) return wanted;
+    return seasonOf(parisParts(nowDate()));
+  }
+
+  // Motifs placés à des endroits réguliers (sans hasard) : pas de saut visuel d'une application à l'autre.
+  function seasonParticles(s) {
+    const out = [];
+    for (let i = 0; i < 10; i++) {
+      const left = 3 + ((i * 41) % 91);
+      const size = 15 + ((i * 7) % 13);
+      const dur = 9 + ((i * 5) % 8);
+      const delay = -(((i * 13) % 17) * 0.8);
+      const dx = (i % 2 ? 1 : -1) * (12 + ((i * 3) % 22));
+      const rot = (i % 2 ? 1 : -1) * (120 + i * 14);
+      const top = 8 + ((i * 29) % 70);
+      out.push(`<span class="sp" style="left:${left}%;--t:${top}%;--d:${dur}s;--dx:${dx}px;--r:${rot}deg;font-size:${size}px;animation-delay:${delay.toFixed(1)}s">${s.emojis[i % s.emojis.length]}</span>`);
+    }
+    return out.join("");
+  }
+
+  function applySeason() {
+    const key = currentSeasonKey();
+    if (key === appliedSeason) return; // rien n'a changé : on ne touche à rien (pas de scintillement)
+    appliedSeason = key;
+    const root = document.documentElement;
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (!key) {
+      root.removeAttribute("data-season");
+      root.removeAttribute("data-palette");
+      root.removeAttribute("data-motion");
+      seasonLayer.innerHTML = "";
+      seasonGreeting.textContent = "";
+      seasonGreeting.hidden = true;
+      if (themeMeta) themeMeta.setAttribute("content", DEFAULT_THEME_COLOR);
+      return;
+    }
+    const s = SEASONS[key];
+    root.setAttribute("data-season", key);
+    root.setAttribute("data-palette", s.palette);
+    root.setAttribute("data-motion", s.motion);
+    seasonLayer.innerHTML = seasonParticles(s);
+    seasonGreeting.textContent = s.greeting;
+    seasonGreeting.hidden = false;
+    if (themeMeta) themeMeta.setAttribute("content", PALETTE_THEME_COLOR[s.palette] || DEFAULT_THEME_COLOR);
+  }
+  /* ===== SAISONS:FIN ===== */
+
   const emojiBtn = el("emojiBtn"), emojiModal = el("emojiModal"), emojiTitle = el("emojiTitle"), emojiGrid = el("emojiGrid");
   const emojiNone = el("emojiNone"), emojiCancel = el("emojiCancel");
   const confirmModal = el("confirmModal"), confirmTitle = el("confirmTitle"), confirmText = el("confirmText");
@@ -1282,7 +1494,8 @@
     const r = revealWrap.getBoundingClientRect();
     const ox = cardRect.width / 2;
     const oy = (r.top - cardRect.top) + r.height / 2;
-    const colors = [...AVATAR_COLORS, "#4f9468"];
+    const seasonColors = appliedSeason && SEASONS[appliedSeason] ? SEASONS[appliedSeason].confetti : null;
+    const colors = seasonColors || [...AVATAR_COLORS, "#4f9468"];
     for (let i = 0; i < 70; i++) {
       const piece = document.createElement("div");
       const s = 6 + Math.random() * 6;
@@ -1459,6 +1672,7 @@
     // Heure serveur et jours sans tirage d'abord : le tirage automatique ne doit jamais partir sur une horloge fausse
     await Promise.all([withTimeout(syncClock(), 4000), loadConfig()]);
     currentDayId = todayStr(); // recalculé maintenant que l'heure est fiable
+    applySeason(); // idem pour la saison
     await ensureDayDoc();
     subscribeDay();
     subscribeHistory();
@@ -1495,6 +1709,7 @@
     };
     setInterval(() => {
       updateClock();
+      applySeason(); // bascule toute seule à minuit quand une période commence ou se termine
       switchDayIfNeeded();
       checkAutoDraw();
       render();
@@ -1505,6 +1720,7 @@
     render();
   }
 
+  applySeason(); // tout de suite, avec l'heure de l'appareil (corrigée ensuite par init())
   init();
 
   if ("serviceWorker" in navigator) {
