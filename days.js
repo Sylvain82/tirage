@@ -102,5 +102,28 @@
     return next.n <= 6 ? wd : `${wd} ${next.date.day} ${MONTHS[next.date.month - 1]}`;
   }
 
-  return { TZ, parisParts, dateKey, frDate, easterSunday, holidaysOf, dayOffReason, nextDrawDayLabel };
+  // Période « de l'année » pour habiller l'appli (Halloween, Noël…). Retourne la clé de la saison, ou null
+  // en dehors des périodes festives (l'appli garde alors son habillage vert habituel).
+  //   automne 22/09-14/10 · halloween 15/10-02/11 · noël 01/12-26/12 · nouvel an 27/12-04/01
+  //   galette des rois 05/01-31/01 · chandeleur 01/02-03/02 · Saint-Valentin 10/02-14/02
+  //   Pâques (9 jours avant → lundi de Pâques) · été 21/06-31/08
+  const SEASON_KEYS = ["automne", "halloween", "noel", "nouvelan", "rois", "chandeleur", "saintvalentin", "paques", "ete"];
+  function seasonOf(parts) {
+    const md = parts.month * 100 + parts.day;
+    if (md >= 1201 && md <= 1226) return "noel";
+    if (md >= 1227 || md <= 104) return "nouvelan";
+    if (md >= 105 && md <= 131) return "rois";
+    if (md >= 201 && md <= 203) return "chandeleur";
+    if (md >= 210 && md <= 214) return "saintvalentin";
+    if (md >= 621 && md <= 831) return "ete";
+    if (md >= 922 && md <= 1014) return "automne";
+    if (md >= 1015 && md <= 1102) return "halloween";
+    // Pâques : date mobile, du samedi précédant le dimanche des Rameaux (−9 j) jusqu'au lundi de Pâques (+1 j)
+    const e = easterSunday(parts.year);
+    const diffDays = Math.round((Date.UTC(parts.year, parts.month - 1, parts.day) - Date.UTC(e.year, e.month - 1, e.day)) / 86400000);
+    if (diffDays >= -9 && diffDays <= 1) return "paques";
+    return null;
+  }
+
+  return { TZ, parisParts, dateKey, frDate, easterSunday, holidaysOf, dayOffReason, nextDrawDayLabel, SEASON_KEYS, seasonOf };
 });
