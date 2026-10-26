@@ -204,6 +204,7 @@
 
   /* ---------- Liste des inscrits : une couleur par personne ---------- */
   .roster { display: flex; flex-direction: column; gap: 8px; }
+  .body-form, .body-actions { display: flex; flex-direction: column; gap: 20px; }
   .chip-row {
     --row-color: var(--accent);
     display: flex; align-items: center; gap: 12px; padding: 9px 14px 9px 9px; border-radius: 999px;
@@ -538,11 +539,11 @@
   html[data-motion="drift"] .sp { top: var(--t, 30%); animation-name: spDrift; animation-timing-function: ease-in-out; animation-direction: alternate; }
   @keyframes spFall {
     0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; } 12% { opacity: 0.6; } 88% { opacity: 0.6; }
-    100% { transform: translate3d(var(--dx, 20px), 360px, 0) rotate(var(--r, 180deg)); opacity: 0; }
+    100% { transform: translate3d(var(--dx, 20px), var(--fall, 360px), 0) rotate(var(--r, 180deg)); opacity: 0; }
   }
   @keyframes spRise {
     0% { transform: translate3d(0, 0, 0) scale(0.8); opacity: 0; } 15% { opacity: 0.6; } 85% { opacity: 0.6; }
-    100% { transform: translate3d(var(--dx, -16px), -360px, 0) scale(1.15); opacity: 0; }
+    100% { transform: translate3d(var(--dx, -16px), calc(var(--fall, 360px) * -1), 0) scale(1.15); opacity: 0; }
   }
   @keyframes spDrift {
     0% { transform: translate3d(-12px, 0, 0) rotate(-8deg); opacity: 0.55; }
@@ -551,6 +552,91 @@
   @media (prefers-reduced-motion: reduce) {
     .sp { animation: none !important; opacity: 0.5; top: var(--t, 30%) !important; bottom: auto !important; }
   }
+
+  /* ============================================================
+     Mode PC (grands écrans) : plus une carte de téléphone étirée, mais un tableau de bord.
+     À gauche, la colonne colorée (titre, heure, statut, compte à rebours) ; à droite le contenu.
+     Sur très grand écran, le contenu se range en deux colonnes (inscription | inscrits).
+     Les téléphones et tablettes ne sont pas concernés (aucune règle en dessous de 980 px).
+     ============================================================ */
+  @media (min-width: 980px) {
+    body { padding: 40px 32px 28px; }
+    .card {
+      display: grid; max-width: 1040px; border-radius: 44px;
+      grid-template-columns: 340px minmax(0, 1fr); grid-template-rows: auto auto auto;
+    }
+    .header { grid-column: 1; grid-row: 1 / span 3; display: flex; flex-direction: column; padding: 34px 30px 36px; }
+    .header::after { display: none; }
+    .reveal, .body, .history-section { grid-column: 2; }
+
+    /* colonne de gauche */
+    .header-top { flex-direction: column; align-items: flex-start; gap: 24px; margin-bottom: 36px; }
+    .header-tools { margin-left: 0; width: 100%; flex-wrap: wrap; row-gap: 16px; }
+    .datetime { order: -1; flex: 0 0 100%; text-align: left; margin: 0; }
+    .date-label { font-size: 13.5px; }
+    .clock { font-size: 44px; line-height: 1.05; letter-spacing: -0.02em; justify-content: flex-start; }
+    h1 { font-size: 42px; }
+    .header > .status-pill, .header > .countdown-pill, .header > .season-greeting { align-self: flex-start; }
+    .status-pill { margin-top: 24px; font-size: 14px; }
+    .hours-note { font-size: 13.5px; }
+    .countdown-pill { margin-top: 14px; font-size: 16px; padding: 10px 18px; }
+    .season-greeting { font-size: 13.5px; margin-bottom: 16px; }
+    :root { --fall: 760px; }
+
+    /* colonne de droite */
+    .reveal { padding: 34px 40px 4px; }
+    .body { padding: 32px 40px 20px; }
+    .history-section { padding: 8px 40px 38px; }
+    .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
+    .action-row, .volunteer-btn { max-width: 560px; }
+    .history-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-height: 290px; }
+    .footnote { max-width: 760px; }
+
+    /* résultat du tirage : avatar à gauche, nom et numéro à droite, sacs à récupérer en dessous */
+    .winner-card {
+      display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 28px; align-items: center;
+      text-align: left; padding: 28px 36px 28px;
+    }
+    .winner-card .tag { grid-column: 1 / -1; grid-row: 1; justify-self: start; margin: 0 0 20px; }
+    .winner-card .winner-avatar { grid-column: 1; grid-row: 2; margin: 0; }
+    .winner-card .winner-name { grid-column: 2; grid-row: 2; font-size: 42px; }
+    .winner-card .bag-line { grid-column: 2; grid-row: 3; justify-self: start; margin: 12px 0 0; }
+    .winner-card .reassign-note { grid-column: 2; grid-row: 4; margin: 10px 0 0; }
+    .winner-card .bags-box { grid-column: 1 / -1; grid-row: 5; margin-top: 26px; }
+    .link-btn { margin-left: 0; }
+
+    /* panneau d'aéroport plus grand */
+    .flap-row { grid-template-columns: repeat(8, minmax(0, 58px)); gap: 8px; }
+    .sf { height: 78px; font-size: 40px; border-radius: 14px; }
+    .flap-tag { font-size: 12.5px; }
+  }
+
+  @media (min-width: 1320px) {
+    .card { max-width: 1360px; grid-template-columns: 400px minmax(0, 1fr); }
+    .header { padding: 40px 36px 40px; }
+    .body {
+      display: grid; grid-template-columns: minmax(340px, 390px) minmax(0, 1fr); grid-template-rows: auto 1fr;
+      column-gap: 44px; row-gap: 22px; align-items: start; padding: 36px 44px 24px;
+    }
+    .body-form { grid-column: 1; grid-row: 1; }
+    .body-actions { grid-column: 1; grid-row: 2; }
+    .body-roster { grid-column: 2; grid-row: 1 / span 2; }
+    .reveal { padding: 36px 44px 4px; }
+    .history-section { padding: 8px 44px 40px; }
+    .winner-card { padding: 30px 40px 30px; }
+  }
+
+  @media (min-width: 1800px) {
+    .card { max-width: 1600px; grid-template-columns: 460px minmax(0, 1fr); }
+    .body { grid-template-columns: minmax(380px, 440px) minmax(0, 1fr); column-gap: 60px; }
+    .roster { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+    h1 { font-size: 48px; }
+    .clock { font-size: 52px; }
+  }
+
+  /* Clavier : un contour net sur le bouton atteint avec Tab (ne s'affiche pas au clic à la souris) */
+  button:focus-visible, [role="button"]:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  .header button:focus-visible { outline-color: #fff; }
 </style>
 </head>
 <body>
@@ -592,6 +678,7 @@
     </div>
 
     <div class="body">
+      <div class="body-form">
       <div>
         <p class="field-label">👋 Je m'inscris</p>
         <div class="add-row">
@@ -604,12 +691,14 @@
         </div>
       </div>
       <p class="error-msg" id="errorMsg" style="display:none;"></p>
+      </div>
 
-      <div>
+      <div class="body-roster">
         <p class="field-label">🥡 Les inscrits du jour</p>
         <div class="roster" id="listWrap"></div>
       </div>
 
+      <div class="body-actions">
       <div class="lock-note">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
         Le gagnant précédent est toujours écarté du tirage
@@ -631,6 +720,7 @@
       </div>
       <p class="hint" id="autoHint"></p>
       <button type="button" class="volunteer-btn" id="volunteerBtn">🙋 Je me propose pour y aller</button>
+      </div>
     </div>
 
     <div class="reveal" id="revealWrap" style="display:none;"></div>
