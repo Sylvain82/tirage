@@ -637,6 +637,12 @@
   /* Clavier : un contour net sur le bouton atteint avec Tab (ne s'affiche pas au clic à la souris) */
   button:focus-visible, [role="button"]:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
   .header button:focus-visible { outline-color: #fff; }
+
+  /* Identité de l'appareil : « un appareil = une personne » */
+  .who-note { margin: 12px 6px 0; font-size: 12.5px; font-weight: 600; color: var(--muted); line-height: 1.5; }
+  .who-note:empty { display: none; }
+  .who-note .link-btn { display: inline; margin: 0 0 0 4px; padding: 0; font-size: 12.5px; }
+  #nameInput.locked { background-image: none; padding-right: 20px; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -689,6 +695,7 @@
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
+        <p class="who-note" id="whoNote"></p>
       </div>
       <p class="error-msg" id="errorMsg" style="display:none;"></p>
       </div>
@@ -930,6 +937,7 @@
   const notifToggle = el("notifToggle"), notifIcon = el("notifIcon");
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
   const seasonLayer = el("seasonLayer"), seasonGreeting = el("seasonGreeting");
+  const whoNote = el("whoNote");
 
   /* ===== SAISONS:DEBUT ===== */
   // Habillage de saison (Halloween, Noël…). La saison est déterminée par la date (heure de Paris, synchronisée sur
@@ -1260,6 +1268,25 @@
     if (revealWrap.previousElementSibling !== wanted) wanted.after(revealWrap);
   }
 
+
+  // ---------- Identité de l'appareil : « un appareil = une personne » ----------
+  // Pas de compte à créer : lors de la 1re inscription, l'appareil retient qui il est, puis il n'inscrit plus que
+  // cette personne, une fois par jour. Ce n'est pas un verrou de sécurité (vider les données du navigateur le
+  // contourne) : il empêche surtout d'inscrire un·e collègue, ou plusieurs personnes, depuis l'appli.
+  const LS = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* stockage indisponible */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* idem */ } },
+  };
+  function myIdentity() { const n = LS.get("myIdentity"); return PARTICIPANTS_LIST.includes(n) ? n : null; }
+  // Inscription du jour faite depuis cet appareil, tant qu'elle existe encore (elle disparaît si le jour est réinitialisé)
+  function myRegToday() {
+    const n = LS.get("myReg:" + currentDayId);
+    return n && dayData.participants.some((p) => p.name === n) ? n : null;
+  }
+  let bagPrefilledDay = null; // le numéro de sac habituel n'est pré-rempli qu'une fois par jour
+  let dayLoaded = false;      // vrai dès que les inscrits du jour sont arrivés (avant, on ne sait pas encore si cet appareil est inscrit)
+
   function showError(msg) {
     errorMsg.textContent = msg;
     errorMsg.style.display = msg ? "block" : "none";
@@ -1274,23 +1301,51 @@
 
     const alreadyIn = new Set(dayData.participants.map(p => p.name));
     const remaining = PARTICIPANTS_LIST.filter(n => !alreadyIn.has(n));
+    let identity = myIdentity();
+    const iRegistered = myRegToday();
+    if (!identity && iRegistered) { LS.set("myIdentity", iRegistered); identity = iRegistered; } // appareil déjà inscrit avant cette mise à jour
     const prevSelection = nameInput.value;
-    const optionsHtml = remaining.length > 0
-      ? remaining.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("")
-      : `<option value="">Tout le monde est inscrit</option>`;
+
+    // Appareil identifié : une seule personne possible (lui-même). Sinon : le choix du prénom est volontaire (liste vide au départ).
+    let optionsHtml, selectable;
+    if (identity) {
+      selectable = remaining.includes(identity);
+      optionsHtml = selectable ? `<option value="${escapeHtml(identity)}">${escapeHtml(identity)}</option>` : `<option value="">Déjà inscrit·e ✓</option>`;
+    } else if (remaining.length > 0) {
+      selectable = true;
+      optionsHtml = `<option value="" disabled selected>Choisis ton prénom…</option>` + remaining.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+    } else {
+      selectable = false;
+      optionsHtml = `<option value="">Tout le monde est inscrit</option>`;
+    }
     if (nameInput.__html !== optionsHtml) {
       nameInput.innerHTML = optionsHtml;
       nameInput.__html = optionsHtml;
-      if (remaining.includes(prevSelection)) nameInput.value = prevSelection;
+      if (remaining.includes(prevSelection) && !identity) nameInput.value = prevSelection;
     }
+    nameInput.classList.toggle("locked", !!identity);
 
     emojiBtn.textContent = emojiFor(nameInput.value) || "🙂";
     emojiBtn.disabled = !nameInput.value;
 
-    const canRegister = regOpen && remaining.length > 0;
+    const canRegister = regOpen && selectable;
     nameInput.disabled = !canRegister;
     bagInput.disabled = !canRegister;
     addBtn.disabled = !canRegister;
+
+    // numéro de sac habituel pré-rempli (une seule fois par jour, jamais par-dessus ce que la personne a tapé)
+    if (identity && canRegister && dayLoaded && !bagInput.value && bagPrefilledDay !== currentDayId) {
+      const lastBag = LS.get("myBag");
+      if (lastBag) bagInput.value = lastBag;
+      bagPrefilledDay = currentDayId;
+    }
+
+    // petite phrase sous le formulaire
+    let noteHtml = "";
+    if (identity && !selectable) noteHtml = "✅ Tu es inscrit·e aujourd'hui.";
+    else if (identity && regOpen) noteHtml = `🔒 Inscription à ton nom uniquement (${escapeHtml(identity)}). <button type="button" class="link-btn" id="notMeBtn">Ce n'est pas moi</button>`;
+    else if (!identity && selectable && regOpen) noteHtml = "Choisis ton prénom : cet appareil sera ensuite réservé à ton nom.";
+    setHtml(whoNote, noteHtml);
 
     let statusText, statusColor, statusBg;
     if (offDay) { statusText = off.status; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
@@ -1405,6 +1460,7 @@
       prevWinner = newData.winner;
       firstSnapshot = false;
       dayData = newData;
+      dayLoaded = true;
       render();
       checkAutoDraw();
     }, (err) => console.error("Erreur de synchronisation", err));
@@ -1428,6 +1484,17 @@
     if (off) { showError(off.status); return; }
     const mins = minutesNow();
     if (mins < REG_OPEN_MIN || mins > REG_CLOSE_MIN) { showError("Les inscriptions sont fermées (ouvertes de 7h00 à 11h55)."); return; }
+    const identity = myIdentity();
+    if (identity && name !== identity) { showError(`Cet appareil est réservé à ${identity} : tu ne peux inscrire que toi.`); return; }
+    if (myRegToday()) { showError("Tu es déjà inscrit·e aujourd'hui depuis cet appareil."); return; }
+    if (!identity) {
+      const ok = await confirmDialog({
+        title: `Tu es bien ${name} ?`,
+        message: `Cet appareil sera réservé à ${name} : il ne pourra inscrire personne d'autre. Tu pourras le changer avec « Ce n'est pas moi » tant que tu n'es pas inscrit·e.`,
+        confirmLabel: "Oui, c'est moi",
+      });
+      if (!ok) return;
+    }
     try {
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(dayRef());
@@ -1440,7 +1507,9 @@
       });
       // Pas de compte à créer : l'appareil retient juste qui s'est inscrit avec lui aujourd'hui,
       // pour proposer un bouton d'annulation uniquement sur SA propre ligne — jamais sur celle des autres.
-      localStorage.setItem("myReg:" + currentDayId, name);
+      LS.set("myReg:" + currentDayId, name);
+      LS.set("myIdentity", name);
+      LS.set("myBag", bag);
       nameInput.value = ""; bagInput.value = ""; showError("");
       render();
     } catch (e) {
@@ -1451,6 +1520,21 @@
 
   // Annule l'inscription de la personne qui a fait cette action sur CET appareil — jamais celle
   // d'un autre : aucun identifiant à créer, juste ce que l'appareil a retenu localement.
+  async function notMe() {
+    const identity = myIdentity();
+    if (!identity || myRegToday()) return; // impossible une fois inscrit·e aujourd'hui : on annule d'abord son inscription
+    const ok = await confirmDialog({
+      title: "Ce n'est pas toi ?",
+      message: `Cet appareil ne sera plus réservé à ${identity}. Tu pourras choisir ton prénom à la prochaine inscription.`,
+      confirmLabel: "Oui, ce n'est pas moi",
+    });
+    if (!ok) return;
+    LS.del("myIdentity"); LS.del("myBag");
+    nameInput.value = ""; bagInput.value = ""; bagPrefilledDay = null;
+    render();
+  }
+  whoNote.addEventListener("click", (e) => { if (e.target.closest("#notMeBtn")) notMe(); });
+
   async function removeOwnParticipant(name) {
     if (localStorage.getItem("myReg:" + currentDayId) !== name) return;
     try {
@@ -1698,6 +1782,19 @@
     const off = offDayInfo();
     if (off) { showError(off.status); return; }
     if (dayData.winner || dayData.participants.length === 0) return;
+    const identity = myIdentity();
+    if (identity) { // appareil identifié : on ne peut se proposer que soi-même
+      if (!dayData.participants.some((p) => p.name === identity)) { showError(`${identity}, inscris-toi d'abord pour te proposer.`); return; }
+      const sure = await confirmDialog({
+        title: `${identity}, tu te proposes ?`,
+        message: "Tu iras chercher les sacs aujourd'hui, sans tirage au sort. Tu seras écarté·e du tirage de demain, comme un gagnant.",
+        confirmLabel: "Je me propose",
+      });
+      if (!sure || dayData.winner) return;
+      showError("");
+      animateThenVolunteer(identity);
+      return;
+    }
     const myReg = localStorage.getItem("myReg:" + currentDayId);
     const registered = dayData.participants;
     const chosen = await confirmDialog({
