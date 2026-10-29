@@ -2,25 +2,27 @@ name: Notify winner
 
 on:
   schedule:
-    # Du lundi au vendredi, toutes les 5 minutes de 4h00 à 11h59 UTC : couvre 6h/7h à 13h/14h heure de Paris
-    # (été ou hiver). GitHub ne garantit PAS l'heure de ces passages (retards, passages sautés) : c'est
-    # pourquoi, entre 11h00 et 12h20 (Paris), un passage reste « en veille » et surveille la base toutes
-    # les 10 secondes au lieu de s'arrêter (voir scripts/send-notifications.js).
+    # Filet de sécurité. ATTENTION : GitHub ne tient PAS ces horaires (le dépôt n'est réveillé que 3 fois par jour
+    # environ, parfois plusieurs heures après l'heure prévue). Pour une notification immédiate, un déclencheur
+    # externe lance ce même workflow à heure fixe avec « watch = true » (voir la notice de mise en place).
     - cron: "*/5 4-11 * * 1-5"
-    # Un passage supplémentaire à 11h57 heure de Paris : 9h57 UTC l'été, 10h57 UTC l'hiver.
     - cron: "57 9-10 * * 1-5"
-  workflow_dispatch: {} # lancement manuel depuis l'onglet Actions : une seule vérification, sans veille
+  workflow_dispatch:
+    inputs:
+      watch:
+        description: "Rester en veille jusqu'au tirage (à activer pour le déclencheur de 11h00 ; sinon une seule vérification)"
+        type: boolean
+        default: false
 
-# Un seul passage automatique à la fois (sinon plusieurs veilles tourneraient en même temps).
-# Un lancement manuel a son propre groupe : il n'attend pas la fin d'une veille en cours.
+# Une seule veille à la fois. Un lancement manuel ordinaire (sans veille) a son propre groupe : il n'attend pas.
 concurrency:
-  group: notify-winner-${{ github.event_name == 'workflow_dispatch' && 'manual' || 'auto' }}
+  group: notify-winner-${{ (github.event_name == 'workflow_dispatch' && !inputs.watch) && 'manual' || 'auto' }}
   cancel-in-progress: false
 
 jobs:
   notify:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -38,5 +40,6 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          ONESHOT: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          ONESHOT: ${{ (github.event_name == 'workflow_dispatch' && !inputs.watch) && '1' || '' }}
+          FORCE_WATCH: ${{ (github.event_name == 'workflow_dispatch' && inputs.watch) && '1' || '' }}
         run: node send-notifications.js
