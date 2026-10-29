@@ -86,7 +86,8 @@ async function main() {
   });
 
   const oneShot = process.env.ONESHOT === "1";
-  if (!shouldWatch({ Days, oneShot })) {
+  const force = process.env.FORCE_WATCH === "1";
+  if (!shouldWatch({ Days, oneShot, force })) {
     report(await check());
     return;
   }
