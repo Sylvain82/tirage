@@ -117,8 +117,11 @@ async function checkOnce({ db, Days, config, now = new Date(), getRefs, serverTs
 }
 
 // La veille n'a lieu qu'entre 11h00 et 12h20 (Paris), et jamais pour un lancement manuel (oneShot).
-function shouldWatch({ Days, now = new Date(), oneShot = false }) {
+// Un lancement qui demande explicitement la veille (force : déclencheur externe, voir notify-winner.yml)
+// la fait quelle que soit son heure de départ (elle s'arrête quand même à 12h20 au plus tard).
+function shouldWatch({ Days, now = new Date(), oneShot = false, force = false }) {
   if (oneShot) return false;
+  if (force) return true;
   const p = Days.parisParts(now);
   const minutes = p.hour * 60 + p.minute;
   return minutes >= WATCH_FROM_MIN && minutes < WATCH_UNTIL_MIN;
