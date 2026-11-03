@@ -643,6 +643,15 @@
   .who-note:empty { display: none; }
   .who-note .link-btn { display: inline; margin: 0 0 0 4px; padding: 0; font-size: 12.5px; }
   #nameInput.locked { background-image: none; padding-right: 20px; pointer-events: none; }
+
+  /* Cloche : petit voyant = cet appareil est bien enregistré pour les notifications (vert) ou a échoué (orange) */
+  #notifToggle { position: relative; }
+  #notifToggle[data-push="ok"]::after, #notifToggle[data-push="error"]::after {
+    content: ""; position: absolute; right: 2px; bottom: 2px; width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid rgba(20, 30, 25, 0.6);
+  }
+  #notifToggle[data-push="ok"]::after { background: #22c55e; }
+  #notifToggle[data-push="error"]::after { background: #f59e0b; }
 </style>
 </head>
 <body>
@@ -1145,9 +1154,20 @@
     });
   }
 
+  // État de l'enregistrement push de CET appareil : "unknown" (pas encore vérifié), "ok" ou "error"
+  let pushState = "unknown";
   function updateNotifIcon() {
-    if (!("Notification" in window)) { notifIcon.textContent = "🔕"; return; }
-    notifIcon.textContent = Notification.permission === "granted" ? "🔔" : "🔕";
+    if (!("Notification" in window)) { notifIcon.textContent = "🔕"; notifToggle.removeAttribute("data-push"); return; }
+    const granted = Notification.permission === "granted";
+    notifIcon.textContent = granted ? "🔔" : "🔕";
+    const state = granted ? pushState : "unknown";
+    if (state === "unknown") notifToggle.removeAttribute("data-push"); else notifToggle.setAttribute("data-push", state);
+    const label = !granted ? "Activer les notifications"
+      : state === "ok" ? "Notifications actives sur cet appareil"
+      : state === "error" ? "Notifications autorisées, mais cet appareil n'est pas enregistré : clique pour réessayer"
+      : "Notifications autorisées";
+    notifToggle.setAttribute("aria-label", label);
+    notifToggle.setAttribute("title", label);
   }
 
   // IMPORTANT : sur Chrome Android (et la plupart des navigateurs mobiles),
@@ -1175,29 +1195,59 @@
     });
   }
 
+  // Abonne l'appareil au push si besoin, puis (ré)écrit son abonnement dans la base : c'est ce que lit le robot.
+  async function registerPush() {
+    let subscription = await swRegistration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await swRegistration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    const subJson = subscription.toJSON();
+    const docId = await sha256Hex(subJson.endpoint);
+    await setDoc(doc(db, "pushSubscriptions", docId), {
+      ...subJson,
+      updatedAt: serverTimestamp(),
+      userAgent: navigator.userAgent,
+    });
+  }
+
+  // Clic sur la cloche : avec messages visibles
   async function subscribeToPush() {
     if (!db || !swRegistration) return;
     try {
-      let subscription = await swRegistration.pushManager.getSubscription();
-      if (!subscription) {
-        subscription = await swRegistration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-        });
-      }
-      const subJson = subscription.toJSON();
-      const docId = await sha256Hex(subJson.endpoint);
-      await setDoc(doc(db, "pushSubscriptions", docId), {
-        ...subJson,
-        updatedAt: serverTimestamp(),
-        userAgent: navigator.userAgent,
-      });
+      await registerPush();
+      pushState = "ok";
       showSubscriptionConfirmed();
     } catch (e) {
+      pushState = "error";
       console.error("Erreur lors de l'abonnement Web Push", e);
       showError("Notifications activées ici, mais l'abonnement push a échoué (voir la console).");
     }
+    updateNotifIcon();
   }
+
+  // Une fois la permission accordée, plus rien à refaire : à chaque ouverture de l'appli (puis au retour sur la page
+  // après 30 minutes, ou au retour du réseau), l'appareil se réinscrit tout seul, en silence. Cela répare un abonnement
+  // perdu, expiré ou renouvelé par le navigateur, et le voyant de la cloche montre que tout est en ordre.
+  let lastPushSync = 0;
+  async function syncPushSubscription() {
+    if (!db || !swRegistration || !("Notification" in window) || Notification.permission !== "granted") return;
+    lastPushSync = Date.now();
+    try {
+      await registerPush();
+      pushState = "ok";
+    } catch (e) {
+      pushState = "error";
+      console.error("Synchronisation de l'abonnement push impossible", e);
+    }
+    updateNotifIcon();
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && Date.now() - lastPushSync > 30 * 60 * 1000) syncPushSubscription();
+  });
+  window.addEventListener("online", () => syncPushSubscription());
 
   function showSubscriptionConfirmed() {
     tokenBox.style.display = "block";
@@ -1913,7 +1963,8 @@
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("sw.js")
-        .then((registration) => { swRegistration = registration; })
+        .then((registration) => { swRegistration = registration; return navigator.serviceWorker.ready; })
+        .then((registration) => { swRegistration = registration; return syncPushSubscription(); })
         .catch((err) => console.error("Échec d'enregistrement du service worker", err));
     });
   }
