@@ -1,15 +1,15 @@
 // Exécuté par la GitHub Action (voir .github/workflows/notify-winner.yml) :
 //  1. ne fait rien les week-ends, jours fériés et jours sans tirage ;
-//  2. entre 11h00 et 12h20 (Paris), reste « en veille » et envoie la notification dans les ~10 secondes
+//  2. entre 11h00 et 12h05 (Paris), reste « en veille » et envoie la notification dans les ~10 secondes
 //     qui suivent le tirage (voir draw-logic.js pour l'explication) ;
-//  3. filet de sécurité : si personne n'a tiré à 11h57, tire le gagnant à la place de l'appli ;
+//  3. filet de sécurité : si personne n'a tiré à 11h41, tire le gagnant à la place de l'appli ;
 //  4. envoie la notification push, une seule fois par tirage.
 // Lancé à la main (« Run workflow »), il ne fait qu'une seule vérification, sans veille.
 
 const admin = require("firebase-admin");
 const webpush = require("web-push");
 const Days = require("../days.js");
-const { loadConfig, checkOnce, shouldWatch, watch, winnerMessage, POLL_MS } = require("./draw-logic.js");
+const { loadConfig, checkOnce, shouldWatch, watch, winnerMessage, pickRecipients, POLL_MS } = require("./draw-logic.js");
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -27,8 +27,8 @@ const getRefs = (dayKey) => ({
   statsRef: db.collection("meta").doc("stats"),
 });
 
-// Envoie la notification à tous les appareils abonnés.
-async function sendPush(winner, dayKey) {
+// Envoie la notification aux appareils des personnes inscrites aujourd'hui (et à elles seules).
+async function sendPush(winner, dayKey, registeredNames) {
   const payload = JSON.stringify({
     title: "Tirage du jour 🥡",
     body: winnerMessage(winner),
@@ -37,14 +37,15 @@ async function sendPush(winner, dayKey) {
   });
 
   const subsSnap = await db.collection("pushSubscriptions").get();
-  if (subsSnap.empty) {
-    console.log("Aucun appareil abonné pour l'instant.");
-    return { sent: 0, removed: 0, transient: 0, subscribers: 0 };
+  const recipients = pickRecipients(subsSnap.docs, registeredNames);
+  console.log(`Appareils abonnés : ${subsSnap.size}. Appareils d'inscrits du jour (avertis) : ${recipients.length}.`);
+  if (recipients.length === 0) {
+    return { sent: 0, removed: 0, transient: 0, subscribers: subsSnap.size };
   }
 
   let sent = 0, removed = 0, transient = 0;
   await Promise.all(
-    subsSnap.docs.map(async (docSnap) => {
+    recipients.map(async (docSnap) => {
       try {
         await webpush.sendNotification(docSnap.data(), payload, {
           urgency: "high", // livraison prioritaire, pour éviter le retard lié au mode veille d'Android
@@ -72,7 +73,7 @@ function report(result) {
     case "off": console.log(`Pas de tirage aujourd'hui (${result.detail}), rien à faire.`); break;
     case "already": console.log("Rien à notifier : la notification du jour est déjà partie."); break;
     case "notified": console.log(`Notification envoyée pour ${result.winner.name}.`); break;
-    case "timeout": console.log("Fin de la veille (12h20) sans gagnant à annoncer."); break;
+    case "timeout": console.log("Fin de la veille (12h05) sans gagnant à annoncer."); break;
     default: console.log(`Rien à notifier pour l'instant (${result.detail || "en attente"}).`);
   }
 }
@@ -92,7 +93,7 @@ async function main() {
     return;
   }
 
-  console.log("Mode veille : vérification toutes les 10 secondes jusqu'au tirage (12h20 au plus tard).");
+  console.log("Mode veille : vérification toutes les 10 secondes jusqu'au tirage (12h05 au plus tard).");
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   report(await watch({ check, Days, sleep, log: console.log, pollMs: POLL_MS }));
 }
