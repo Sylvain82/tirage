@@ -11,7 +11,7 @@ async function loadConfig(db) {
   };
 }
 
-// Tire le gagnant si personne ne l'a fait (appli ouverte à 11h56, ou autre passage de la Action).
+// Tire le gagnant si personne ne l'a fait (appli ouverte à l'heure du tirage, 11h40, ou autre passage de la Action).
 // Tout se passe dans une transaction : impossible d'obtenir deux gagnants, même en cas de course.
 // Retourne le gagnant tiré, ou null si rien n'a été fait.
 async function drawIfNeeded({ db, dayRef, histRef, statsRef, dateFr, serverTs, inc, random = Math.random }) {
@@ -67,12 +67,12 @@ function winnerMessage(winner) {
 // plusieurs dizaines de minutes) ou en saute quand il est chargé. La notification partait donc au prochain
 // passage réellement démarré : d'où des délais aléatoires après le tirage.
 // Solution : à partir de 11h00 (Paris), un passage ne s'arrête plus tout de suite : il reste « en veille »,
-// regarde la base toutes les 10 secondes, et envoie la notification dès qu'un gagnant existe. À 11h57 il
+// regarde la base toutes les 10 secondes, et envoie la notification dès qu'un gagnant existe. À 11h41 il
 // effectue lui-même le tirage de secours si personne ne l'a fait.
 // ---------------------------------------------------------------------------------------------
-const DRAW_FALLBACK_MIN = 11 * 60 + 57; // un cran après le tirage automatique de l'appli (11h56)
+const DRAW_FALLBACK_MIN = 11 * 60 + 41; // un cran après le tirage automatique de l'appli (11h40)
 const WATCH_FROM_MIN = 11 * 60;         // la veille commence à 11h00 (heure de Paris)
-const WATCH_UNTIL_MIN = 12 * 60 + 20;   // ... et s'arrête au plus tard à 12h20
+const WATCH_UNTIL_MIN = 12 * 60 + 5;    // ... et s'arrête au plus tard à 12h05
 const POLL_MS = 10 * 1000;
 
 // Une vérification. États retournés :
@@ -107,7 +107,9 @@ async function checkOnce({ db, Days, config, now = new Date(), getRefs, serverTs
     return fresh && fresh.winner && fresh.pushSent ? { state: "already" } : { state: "waiting", detail: "aucun inscrit" };
   }
 
-  const result = await sendPush(winner, dayKey);
+  // Seuls les inscrits du jour sont avertis (voir pickRecipients)
+  const registeredNames = (data.participants || []).map((p) => p.name);
+  const result = await sendPush(winner, dayKey, registeredNames);
   if (result.sent === 0 && result.transient > 0) {
     // Panne générale (réseau, service push...) : on libère la réservation, la prochaine vérification réessaiera.
     await dayRef.update({ pushSent: false });
@@ -116,9 +118,20 @@ async function checkOnce({ db, Days, config, now = new Date(), getRefs, serverTs
   return { state: "notified", winner, result, drawn };
 }
 
-// La veille n'a lieu qu'entre 11h00 et 12h20 (Paris), et jamais pour un lancement manuel (oneShot).
+// Parmi tous les appareils abonnés, ne garde que ceux qui appartiennent à un inscrit du jour.
+// `person` est écrit par l'appli dans chaque abonnement (le prénom associé à l'appareil, ou null) :
+// un appareil sans personne, ou dont la personne n'est pas inscrite aujourd'hui, n'est pas averti.
+function pickRecipients(docs, registeredNames) {
+  const names = new Set(registeredNames);
+  return docs.filter((d) => {
+    const person = d.data().person;
+    return typeof person === "string" && names.has(person);
+  });
+}
+
+// La veille n'a lieu qu'entre 11h00 et 12h05 (Paris), et jamais pour un lancement manuel (oneShot).
 // Un lancement qui demande explicitement la veille (force : déclencheur externe, voir notify-winner.yml)
-// la fait quelle que soit son heure de départ (elle s'arrête quand même à 12h20 au plus tard).
+// la fait quelle que soit son heure de départ (elle s'arrête quand même à 12h05 au plus tard).
 function shouldWatch({ Days, now = new Date(), oneShot = false, force = false }) {
   if (oneShot) return false;
   if (force) return true;
@@ -127,7 +140,7 @@ function shouldWatch({ Days, now = new Date(), oneShot = false, force = false })
   return minutes >= WATCH_FROM_MIN && minutes < WATCH_UNTIL_MIN;
 }
 
-// Vérifie en boucle jusqu'à ce que la notification soit partie (ou inutile), ou jusqu'à 12h20.
+// Vérifie en boucle jusqu'à ce que la notification soit partie (ou inutile), ou jusqu'à 12h05.
 async function watch({ check, Days, sleep, now = () => new Date(), log = () => {}, pollMs = POLL_MS }) {
   let polls = 0;
   for (;;) {
@@ -143,6 +156,6 @@ async function watch({ check, Days, sleep, now = () => new Date(), log = () => {
 
 module.exports = {
   loadConfig, drawIfNeeded, claimNotification, winnerMessage,
-  checkOnce, shouldWatch, watch,
+  checkOnce, shouldWatch, watch, pickRecipients,
   DRAW_FALLBACK_MIN, WATCH_FROM_MIN, WATCH_UNTIL_MIN, POLL_MS,
 };
