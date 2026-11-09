@@ -6,7 +6,8 @@ on:
     # environ, parfois plusieurs heures après l'heure prévue). Pour une notification immédiate, un déclencheur
     # externe lance ce même workflow à heure fixe avec « watch = true » (voir la notice de mise en place).
     - cron: "*/5 4-11 * * 1-5"
-    - cron: "57 9-10 * * 1-5"
+    # Un passage supplémentaire à 11h41 heure de Paris (juste après le tirage de 11h40) : 9h41 UTC l'été, 10h41 UTC l'hiver.
+    - cron: "41 9-10 * * 1-5"
   workflow_dispatch:
     inputs:
       watch:
