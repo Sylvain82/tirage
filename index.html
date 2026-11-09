@@ -652,6 +652,26 @@
   }
   #notifToggle[data-push="ok"]::after { background: #22c55e; }
   #notifToggle[data-push="error"]::after { background: #f59e0b; }
+
+  /* Annonce du changement d'horaires */
+  .schedule-notice { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: 22px; background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent-ink); }
+  .schedule-notice[hidden] { display: none; }
+  .schedule-notice .sn-text { margin: 0; font-size: 13.5px; font-weight: 700; line-height: 1.45; }
+  .schedule-notice .sn-ok { border: none; cursor: pointer; padding: 7px 14px; border-radius: 999px; background: var(--accent-grad); color: #fff; font: 800 12.5px 'Manrope', sans-serif; }
+
+  /* Remerciements au volontaire */
+  .react-box { text-align: center; margin: 16px 0 0; }
+  .react-title { margin: 0 0 8px; font-size: 13px; font-weight: 800; color: var(--muted); }
+  .react-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  .react-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 999px; cursor: pointer; background: var(--chip); border: 1.5px solid var(--line);
+    color: var(--ink); font: 700 13px 'Manrope', sans-serif; transition: transform 0.12s ease, border-color 0.15s ease; }
+  .react-btn span { font-size: 19px; line-height: 1; }
+  .react-btn b { min-width: 8px; }
+  .react-btn:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--accent); }
+  .react-btn.mine { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+  .react-btn:disabled { opacity: 0.55; cursor: default; }
+  .react-who { margin: 9px 0 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -694,6 +714,10 @@
 
     <div class="body">
       <div class="body-form">
+      <div class="schedule-notice" id="scheduleNotice" role="status" hidden>
+        <p class="sn-text" id="scheduleNoticeText"></p>
+        <button type="button" class="sn-ok" id="scheduleNoticeOk">J'ai compris</button>
+      </div>
       <div>
         <p class="field-label">👋 Je m'inscris</p>
         <div class="add-row">
@@ -853,8 +877,8 @@
   function initialsFor(name) { return (name || "?").slice(0, 2).toUpperCase(); }
 
   const REG_OPEN_MIN = 7 * 60;        // 07:00
-  const REG_CLOSE_MIN = 11 * 60 + 55; // 11:55
-  const DRAW_MIN = 11 * 60 + 56;      // 11:56
+  const REG_CLOSE_MIN = 11 * 60 + 39; // 11:39 (dernière minute d'inscription)
+  const DRAW_MIN = 11 * 60 + 40;      // 11:40 (tirage automatique)
 
   // ---- Heure de référence : serveur Firebase + fuseau Europe/Paris ----
   // On ne se fie pas à l'horloge de l'appareil (réglage faux, mauvais fuseau…) : l'écart avec l'heure du
@@ -905,7 +929,7 @@
   function minutesNow(d = nowDate()) { const p = parisParts(d); return p.hour * 60 + p.minute; }
   function formatHM(totalMin) { return `${Math.floor(totalMin / 60)}h${String(totalMin % 60).padStart(2, "0")}`; }
   const pad2 = (n) => String(n).padStart(2, "0");
-  // Secondes restantes avant le tirage de 11h56 (heure de Paris), 0 si l'heure est dépassée.
+  // Secondes restantes avant l'heure du tirage (heure de Paris), 0 si l'heure est dépassée.
   function secondsUntilDraw(d = nowDate()) {
     const p = parisParts(d);
     return Math.max(0, DRAW_MIN * 60 - (p.hour * 3600 + p.minute * 60 + p.second));
@@ -947,6 +971,7 @@
   const tokenBox = el("tokenBox"), tokenValue = el("tokenValue");
   const seasonLayer = el("seasonLayer"), seasonGreeting = el("seasonGreeting");
   const whoNote = el("whoNote");
+  const scheduleNoticeEl = el("scheduleNotice"), scheduleNoticeText = el("scheduleNoticeText"), scheduleNoticeOk = el("scheduleNoticeOk");
 
   /* ===== SAISONS:DEBUT ===== */
   // Habillage de saison (Halloween, Noël…). La saison est déterminée par la date (heure de Paris, synchronisée sur
@@ -1187,6 +1212,12 @@
     } catch (e) { console.error("Erreur d'affichage de la notification", e); }
   }
 
+  // Cet appareil appartient-il à quelqu'un d'inscrit dans cette journée ? (seuls les inscrits sont avertis)
+  function isRegisteredIn(day) {
+    const identity = myIdentity();
+    return !!identity && (day.participants || []).some((p) => p.name === identity);
+  }
+
   function notifyWinner(winner) {
     showLocalNotification("Tirage du jour 🥡", {
       body: winner.bag ? `${winnerSentence(winner)} — Sac n°${winner.bag}` : winnerSentence(winner),
@@ -1208,6 +1239,7 @@
     const docId = await sha256Hex(subJson.endpoint);
     await setDoc(doc(db, "pushSubscriptions", docId), {
       ...subJson,
+      person: myIdentity(), // à qui appartient cet appareil (null tant qu'il n'a jamais servi à s'inscrire) : le robot n'avertit que les inscrits du jour
       updatedAt: serverTimestamp(),
       userAgent: navigator.userAgent,
     });
@@ -1251,7 +1283,7 @@
 
   function showSubscriptionConfirmed() {
     tokenBox.style.display = "block";
-    tokenValue.textContent = "Cet appareil recevra les notifications même une fois l'appli fermée.";
+    tokenValue.textContent = "Cet appareil recevra le résultat du tirage, même appli fermée, les jours où tu es inscrit·e.";
   }
 
   notifToggle.addEventListener("click", async () => {
@@ -1266,7 +1298,7 @@
       if (perm !== "granted") return;
     }
     await showLocalNotification("Notifications activées 🎉", {
-      body: "Tu seras prévenu·e ici si l'appli reste ouverte au moment du tirage.",
+      body: "Tu seras prévenu·e du résultat du tirage, uniquement les jours où tu es inscrit·e.",
       icon: "icon-192.png",
     });
     await subscribeToPush();
@@ -1353,7 +1385,7 @@
     const remaining = PARTICIPANTS_LIST.filter(n => !alreadyIn.has(n));
     let identity = myIdentity();
     const iRegistered = myRegToday();
-    if (!identity && iRegistered) { LS.set("myIdentity", iRegistered); identity = iRegistered; } // appareil déjà inscrit avant cette mise à jour
+    if (!identity && iRegistered) { LS.set("myIdentity", iRegistered); identity = iRegistered; syncPushSubscription(); } // appareil déjà inscrit avant cette mise à jour
     const prevSelection = nameInput.value;
 
     // Appareil identifié : une seule personne possible (lui-même). Sinon : le choix du prénom est volontaire (liste vide au départ).
@@ -1400,9 +1432,9 @@
     let statusText, statusColor, statusBg;
     if (offDay) { statusText = off.status; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
     else if (dayData.winner) { statusText = "Tirage terminé"; statusColor = "var(--success)"; statusBg = "var(--success-soft)"; }
-    else if (regOpen) { statusText = "Inscriptions ouvertes jusqu'à 11h55"; statusColor = "var(--accent-ink)"; statusBg = "var(--accent-soft)"; }
+    else if (regOpen) { statusText = "Inscriptions ouvertes jusqu'à " + formatHM(REG_CLOSE_MIN); statusColor = "var(--accent-ink)"; statusBg = "var(--accent-soft)"; }
     else if (beforeReg) { statusText = "Inscriptions à partir de 7h00"; statusColor = "var(--muted)"; statusBg = "var(--chip)"; }
-    else { statusText = "Inscriptions fermées — tirage à 11h56"; statusColor = "var(--danger)"; statusBg = "var(--danger-soft)"; }
+    else { statusText = "Inscriptions fermées — tirage à " + formatHM(DRAW_MIN); statusColor = "var(--danger)"; statusBg = "var(--danger-soft)"; }
     statusLabelEl.textContent = statusText;
     statusPillEl.style.color = statusColor;
     statusPillEl.style.background = statusBg;
@@ -1428,7 +1460,8 @@
     drawBtn.disabled = rolling || dayData.participants.length === 0;
     volunteerBtn.style.display = (!offDay && !dayData.winner && dayData.participants.length > 0 && !rolling && !revealing) ? "flex" : "none";
     drawBtnLabel.textContent = rolling ? "Tirage en cours…" : (mins < DRAW_MIN ? "Lancer le tirage maintenant" : "Lancer le tirage");
-    autoHintEl.textContent = (!offDay && !dayData.winner && mins < DRAW_MIN) ? "Tirage automatique à 11h56 si personne n'a lancé avant." : "";
+    autoHintEl.textContent = (!offDay && !dayData.winner && mins < DRAW_MIN) ? `Tirage automatique à ${formatHM(DRAW_MIN)} si personne n'a lancé avant.` : "";
+    updateScheduleNotice();
     updateHoursAndCountdown();
 
     placeReveal(rolling || revealing || (!!dayData.winner && winnerIsFresh()));
@@ -1443,7 +1476,13 @@
           <p class="bags-title">🥡 ${bags.length} sac${bags.length > 1 ? "s" : ""} à récupérer</p>
           <div class="bags-list">${bags.map(b => `<span class="bag-chip" style="--row-color:${colorFor(b.name)}"><b>n°${escapeHtml(b.bag)}</b>${escapeHtml(b.name)}</span>`).join("")}</div>
         </div>` : "";
-      setHtml(revealWrap, `
+      // Deux zones indépendantes : la carte (qui apparaît une seule fois) et les remerciements (qui changent à chaque réaction)
+      if (!revealWrap.__slots || !revealWrap.contains(revealWrap.__slots.card)) {
+        revealWrap.innerHTML = '<div data-slot="card"></div><div data-slot="react"></div>';
+        revealWrap.__slots = { card: revealWrap.children[0], react: revealWrap.children[1] };
+        revealWrap.__html = null;
+      }
+      setHtml(revealWrap.__slots.card, `
         <div class="winner-card">
           <p class="tag">${w.volunteer ? "Volontaire 🙋" : "Désigné·e"}</p>
           <div class="winner-avatar${avatarClass(w.name)}" style="${avatarStyle(w.name)}">${avatarInner(w.name)}</div>
@@ -1452,6 +1491,9 @@
           ${w.reassignedFrom ? `<p class="reassign-note">Attribué à la place de ${escapeHtml(w.reassignedFrom)}</p>` : ""}
           ${bagsHtml}
         </div>
+      `);
+      setHtml(revealWrap.__slots.react, `
+        ${reactionsHtml()}
         ${isDrawDay() ? `<button class="link-btn" id="reassignBtn">Quelqu'un d'autre est allé chercher les sacs ?</button>` : ""}
       `);
     } else {
@@ -1505,7 +1547,7 @@
         // Un gagnant vient d'être désigné (tirage automatique ou lancé depuis un autre appareil) :
         // onglet visible -> on joue la révélation à l'écran ; onglet en arrière-plan -> notification.
         if (document.visibilityState === "visible") playReveal(Promise.resolve(newData.winner));
-        else notifyWinner(newData.winner);
+        else if (isRegisteredIn(newData)) notifyWinner(newData.winner);
       }
       prevWinner = newData.winner;
       firstSnapshot = false;
@@ -1533,7 +1575,7 @@
     const off = offDayInfo();
     if (off) { showError(off.status); return; }
     const mins = minutesNow();
-    if (mins < REG_OPEN_MIN || mins > REG_CLOSE_MIN) { showError("Les inscriptions sont fermées (ouvertes de 7h00 à 11h55)."); return; }
+    if (mins < REG_OPEN_MIN || mins > REG_CLOSE_MIN) { showError(`Les inscriptions sont fermées (ouvertes de ${formatHM(REG_OPEN_MIN)} à ${formatHM(REG_CLOSE_MIN)}).`); return; }
     const identity = myIdentity();
     if (identity && name !== identity) { showError(`Cet appareil est réservé à ${identity} : tu ne peux inscrire que toi.`); return; }
     if (myRegToday()) { showError("Tu es déjà inscrit·e aujourd'hui depuis cet appareil."); return; }
@@ -1560,6 +1602,7 @@
       LS.set("myReg:" + currentDayId, name);
       LS.set("myIdentity", name);
       LS.set("myBag", bag);
+      syncPushSubscription(); // l'appareil est maintenant « à ce nom » pour les notifications
       nameInput.value = ""; bagInput.value = ""; showError("");
       render();
     } catch (e) {
@@ -1570,6 +1613,19 @@
 
   // Annule l'inscription de la personne qui a fait cette action sur CET appareil — jamais celle
   // d'un autre : aucun identifiant à créer, juste ce que l'appareil a retenu localement.
+  // ---------- Annonce du changement d'horaires ----------
+  // Visible jusqu'à la date « until » (heure de Paris), ou jusqu'à ce que la personne clique « J'ai compris » (retenu par appareil).
+  const SCHEDULE_NOTICE = { id: "horaires-2026-11-09", until: "2026-11-30", before: "11h55 et 11h56" };
+  function updateScheduleNotice() {
+    const show = LS.get("scheduleNoticeSeen") !== SCHEDULE_NOTICE.id && currentDayId <= SCHEDULE_NOTICE.until;
+    scheduleNoticeEl.hidden = !show;
+    if (show) {
+      const text = `⏰ Changement d'horaires : les inscriptions s'arrêtent maintenant à ${formatHM(REG_CLOSE_MIN)} et le tirage a lieu à ${formatHM(DRAW_MIN)} (avant : ${SCHEDULE_NOTICE.before}).`;
+      if (scheduleNoticeText.textContent !== text) scheduleNoticeText.textContent = text;
+    }
+  }
+  scheduleNoticeOk.addEventListener("click", () => { LS.set("scheduleNoticeSeen", SCHEDULE_NOTICE.id); updateScheduleNotice(); });
+
   async function notMe() {
     const identity = myIdentity();
     if (!identity || myRegToday()) return; // impossible une fois inscrit·e aujourd'hui : on annule d'abord son inscription
@@ -1581,6 +1637,7 @@
     if (!ok) return;
     LS.del("myIdentity"); LS.del("myBag");
     nameInput.value = ""; bagInput.value = ""; bagPrefilledDay = null;
+    syncPushSubscription(); // l'appareil n'est plus associé à personne
     render();
   }
   whoNote.addEventListener("click", (e) => { if (e.target.closest("#notMeBtn")) notMe(); });
@@ -1657,6 +1714,72 @@
   // Le gagnant du jour ET la dernière ligne de l'historique sont remplacés dans la même transaction,
   // donc c'est bien cette personne qui sera écartée demain, et la personne initialement tirée
   // redevient éligible.
+  // ---------- Remerciements au volontaire ----------
+  // Quand quelqu'un se propose pour aller chercher les sacs, les autres peuvent le remercier d'un clic (un clic de plus retire la réaction).
+  // Les réactions sont rangées dans le document du jour : { "🙏": ["Kevin", ...], ... }. Pas de compte : on utilise le prénom de l'appareil
+  // s'il est connu, sinon un identifiant anonyme propre à l'appareil.
+  const THANKS = ["🙏", "👏", "❤️", "🙌"];
+  const isAnon = (id) => String(id).startsWith("anon:");
+  function myReactorId() {
+    const id = myIdentity();
+    if (id) return id;
+    let anon = LS.get("anonId");
+    if (!anon) { anon = "anon:" + Math.random().toString(36).slice(2, 10); LS.set("anonId", anon); }
+    return anon;
+  }
+  function reactionsHtml() {
+    const w = dayData.winner;
+    if (!w || !w.volunteer) return "";
+    const me = myReactorId();
+    const self = myIdentity() === w.name;
+    const reacts = dayData.reactions || {};
+    const everyone = new Set();
+    THANKS.forEach((e) => (reacts[e] || []).forEach((id) => everyone.add(id)));
+    const named = [...everyone].filter((id) => !isAnon(id));
+    const anonCount = everyone.size - named.length;
+    const buttons = THANKS.map((e) => {
+      const who = reacts[e] || [];
+      const mine = who.includes(me);
+      const title = who.length ? who.map((id) => (isAnon(id) ? "quelqu'un" : id)).join(", ") : "Personne pour l'instant";
+      return `<button type="button" class="react-btn${mine ? " mine" : ""}" data-react="${e}" aria-pressed="${mine}" title="${escapeHtml(title)}"${self ? " disabled" : ""}><span>${e}</span><b>${who.length || ""}</b></button>`;
+    }).join("");
+    let line = "";
+    if (everyone.size) {
+      const shown = named.slice(0, 3).map(escapeHtml);
+      const others = everyone.size - shown.length;
+      let text;
+      if (others > 0 && shown.length === 0) text = `${others} personne${others > 1 ? "s" : ""}`;
+      else if (others > 0) text = `${shown.join(", ")} et ${others} autre${others > 1 ? "s" : ""}`;
+      else if (shown.length > 1) text = `${shown.slice(0, -1).join(", ")} et ${shown[shown.length - 1]}`;
+      else text = shown[0];
+      line = `<p class="react-who">Remercié·e par ${text}.</p>`;
+    } else if (!self) {
+      line = `<p class="react-who">Sois le premier à le·la remercier !</p>`;
+    }
+    const title = self ? "Tes collègues peuvent te remercier 🎉" : `Remercie ${escapeHtml(w.name)} d'y aller !`;
+    return `<div class="react-box"><p class="react-title">${title}</p><div class="react-row">${buttons}</div>${line}</div>`;
+  }
+  async function toggleReaction(emoji) {
+    const w = dayData.winner;
+    if (!THANKS.includes(emoji) || !w || !w.volunteer || myIdentity() === w.name) return;
+    const me = myReactorId();
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(dayRef());
+        const data = snap.data();
+        if (!data || !data.winner || !data.winner.volunteer) return;
+        const reactions = { ...(data.reactions || {}) };
+        const who = new Set(reactions[emoji] || []);
+        if (who.has(me)) who.delete(me); else who.add(me);
+        if (who.size) reactions[emoji] = [...who]; else delete reactions[emoji];
+        tx.set(dayRef(), { ...data, reactions });
+      });
+    } catch (e) {
+      console.error(e);
+      showError("Erreur réseau, réessaie.");
+    }
+  }
+
   async function reassignWinner(newName) {
     if (!isDrawDay() || !PARTICIPANTS_LIST.includes(newName)) return;
     try {
@@ -1676,7 +1799,7 @@
         const lastIsToday = entries[0] && entries[0].name === data.winner.name && entries[0].date === today;
         const next = lastIsToday ? [entry, ...entries.slice(1)] : [entry, ...entries];
 
-        tx.set(dayRef(), { ...data, winner: newWinner });
+        tx.set(dayRef(), { ...data, winner: newWinner, reactions: {} }); // les remerciements étaient pour l'ancien volontaire
         tx.set(historyRef(), { entries: next.slice(0, 30) });
         tx.set(statsRef(), { wins: { [originalName]: increment(-1), [newName]: increment(1) } }, { merge: true });
       });
@@ -1701,6 +1824,8 @@
   }
 
   revealWrap.addEventListener("click", (e) => {
+    const react = e.target.closest("[data-react]");
+    if (react) { toggleReaction(react.dataset.react); return; }
     if (e.target.closest("#reassignBtn")) reassignFlow();
   });
 
