@@ -723,7 +723,7 @@
         <div class="add-row">
           <select id="nameInput"></select>
           <button type="button" class="emoji-btn" id="emojiBtn" aria-label="Choisir l'émoji" title="Choisir l'émoji">🙂</button>
-          <input type="text" id="bagInput" placeholder="N° sac" autocomplete="off">
+          <input type="text" id="bagInput" placeholder="N° sac" autocomplete="off" inputmode="numeric" pattern="[0-9]{1,2}" aria-label="Numéro de sac (1 ou 2 chiffres)">
           <button class="icon-btn" id="addBtn" aria-label="S'inscrire">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
@@ -1366,6 +1366,17 @@
     const n = LS.get("myReg:" + currentDayId);
     return n && dayData.participants.some((p) => p.name === n) ? n : null;
   }
+
+  // ---------- Numéro de sac : 1 ou 2 chiffres, rien d'autre ----------
+  const BAG_RE = /^\d{1,2}$/;     // valeur acceptée : un ou deux chiffres (0 à 99)
+  const NON_DIGIT_RE = /\D/g;      // tout ce qui n'est pas un chiffre
+  const cleanBag = (v) => String(v).replace(NON_DIGIT_RE, "").slice(0, 2);
+  // Quoi que la personne tape ou colle (lettres, espaces, signes, 3e chiffre...), seuls 1 ou 2 chiffres restent.
+  // (Pas d'attribut maxlength : il couperait le texte collé AVANT le nettoyage — « n° 12 » deviendrait « n° » puis vide.)
+  bagInput.addEventListener("input", () => {
+    const cleaned = cleanBag(bagInput.value);
+    if (cleaned !== bagInput.value) bagInput.value = cleaned;
+  });
   let bagPrefilledDay = null; // le numéro de sac habituel n'est pré-rempli qu'une fois par jour
   let dayLoaded = false;      // vrai dès que les inscrits du jour sont arrivés (avant, on ne sait pas encore si cet appareil est inscrit)
 
@@ -1418,7 +1429,7 @@
     // numéro de sac habituel pré-rempli (une seule fois par jour, jamais par-dessus ce que la personne a tapé)
     if (identity && canRegister && dayLoaded && !bagInput.value && bagPrefilledDay !== currentDayId) {
       const lastBag = LS.get("myBag");
-      if (lastBag) bagInput.value = lastBag;
+      if (lastBag && BAG_RE.test(lastBag)) bagInput.value = lastBag;
       bagPrefilledDay = currentDayId;
     }
 
@@ -1572,6 +1583,7 @@
     const bag = bagInput.value.trim();
     if (!name || !PARTICIPANTS_LIST.includes(name)) { showError("Choisis un nom dans la liste."); return; }
     if (!bag) { showError("Merci d'indiquer un numéro de sac."); return; }
+    if (!BAG_RE.test(bag)) { showError("Le numéro de sac doit contenir 1 ou 2 chiffres (par exemple 7 ou 42)."); return; }
     const off = offDayInfo();
     if (off) { showError(off.status); return; }
     const mins = minutesNow();
